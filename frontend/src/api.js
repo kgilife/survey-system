@@ -21,11 +21,25 @@ async function callApi(action, payload = {}) {
 }
 
 export const api = {
-  // 管理員登入
+  // Admin APIs
   adminLogin: (adminKey) => callApi('admin_login', { adminKey }),
-  
-  // 取得管理員專案列表
   getProjects: (adminId) => callApi('admin_get_projects', { adminId }),
+  createProject: (adminId, projectName) => callApi('admin_create_project', { adminId, projectName }),
+  
+  getFormSchema: (adminId, projectId) => callApi('admin_get_form_schema', { adminId, projectId }),
+  saveFormSchema: (adminId, projectId, schemaJson) => callApi('admin_save_form_schema', { adminId, projectId, schemaJson }),
+  
+  getUsers: (adminId, projectId) => callApi('admin_get_users', { adminId, projectId }),
+  batchImportUsers: (adminId, projectId, users) => callApi('admin_batch_import_users', { adminId, projectId, users }),
+  
+  getStats: (adminId, projectId) => callApi('admin_get_stats', { adminId, projectId }),
+  
+  // Responder APIs
+  responderLogin: (projectId, userCode, userPassword) => callApi('responder_login', { projectId, userCode, userPassword }),
+  getDraft: (projectId, userCode) => callApi('responder_get_draft', { projectId, userCode }),
+  saveDraft: (projectId, userCode, draftJson) => callApi('responder_save_draft', { projectId, userCode, draftJson }),
+  submitSurvey: (projectId, userCode, dataJson, startTime) => callApi('responder_submit_survey', { projectId, userCode, dataJson, startTime }),
+  uploadFile: (projectId, filename, mimeType, base64Data) => callApi('upload_file', { projectId, filename, mimeType, base64Data }),
   
   // 測試連線
   ping: () => callApi('ping')

@@ -42,6 +42,58 @@ function handleRequest(e, method) {
       case 'admin_get_projects':
         responseData = apiAdminGetProjects(params);
         break;
+      
+      // Admin Project APIs
+      case 'admin_create_project':
+        responseData = apiAdminCreateProject(params);
+        break;
+      case 'admin_delete_project':
+        responseData = apiAdminDeleteProject(params);
+        break;
+      case 'admin_update_project_status':
+        responseData = apiAdminUpdateProjectStatus(params);
+        break;
+        
+      // Admin Form & User APIs
+      case 'admin_save_form_schema':
+        responseData = apiAdminSaveFormSchema(params);
+        break;
+      case 'admin_get_form_schema':
+        responseData = apiAdminGetFormSchema(params);
+        break;
+      case 'admin_batch_import_users':
+        responseData = apiAdminBatchImportUsers(params);
+        break;
+      case 'admin_get_users':
+        responseData = apiAdminGetUsers(params);
+        break;
+      case 'admin_get_stats':
+        responseData = apiAdminGetStats(params);
+        break;
+
+      // Responder APIs
+      case 'responder_login':
+        responseData = apiResponderLogin(params);
+        break;
+      case 'responder_get_survey':
+        // get survey is essentially getting form schema
+        responseData = apiAdminGetFormSchema(params);
+        break;
+      case 'responder_save_draft':
+        responseData = apiResponderSaveDraft(params);
+        break;
+      case 'responder_get_draft':
+        responseData = apiResponderGetDraft(params);
+        break;
+      case 'responder_submit_survey':
+        responseData = apiResponderSubmitSurvey(params);
+        break;
+        
+      // File Upload API
+      case 'upload_file':
+        responseData = apiUploadFile(params);
+        break;
+
       case 'ping':
         responseData = { success: true, message: 'pong', data: new Date().toISOString() };
         break;

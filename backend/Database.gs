@@ -141,3 +141,44 @@ function logAction(admin_id, project_id, operator_type, operator_id, action, tar
   };
   appendRowData('系統操作紀錄', logObj);
 }
+
+/**
+ * 為新專案建立獨立的資料夾與資料庫
+ */
+function createProjectDatabase(projectName, adminFolderId) {
+  const adminFolder = DriveApp.getFolderById(adminFolderId);
+  const projectFolder = adminFolder.createFolder(projectName + '_' + Utilities.getUuid().split('-')[0]);
+  
+  const ss = SpreadsheetApp.create(projectName + '_資料庫');
+  const dbFileId = ss.getId();
+  const file = DriveApp.getFileById(dbFileId);
+  file.moveTo(projectFolder);
+  
+  // 建立必要工作表
+  let schemaSheet = ss.insertSheet('FormSchema');
+  schemaSheet.appendRow(['schema_json', 'updated_at']); // 儲存整個問卷結構 JSON
+  
+  let usersSheet = ss.insertSheet('Users');
+  usersSheet.appendRow(['user_code', 'user_password', 'user_name', 'status']);
+  
+  let responsesSheet = ss.insertSheet('Responses');
+  responsesSheet.appendRow(['response_id', 'user_code', 'status', 'start_time', 'submit_time', 'data_json']);
+  
+  let draftsSheet = ss.insertSheet('Drafts');
+  draftsSheet.appendRow(['user_code', 'draft_json', 'updated_at']);
+  
+  let logsSheet = ss.insertSheet('Logs');
+  logsSheet.appendRow(['log_id', 'user_code', 'action', 'created_at']);
+  
+  // 刪除預設工作表
+  const defaultSheet = ss.getSheetByName('工作表1') || ss.getSheetByName('Sheet1');
+  if (defaultSheet) {
+    ss.deleteSheet(defaultSheet);
+  }
+  
+  return {
+    folderId: projectFolder.getId(),
+    spreadsheetId: dbFileId
+  };
+}
+
