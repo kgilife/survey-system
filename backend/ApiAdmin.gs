@@ -1,146 +1,59 @@
-// ==========================================
-// 管理員 API
-// ==========================================
-
-function apiAdminCreateProject(params) {
-  const { adminId, projectName } = params;
-  if (!adminId || !projectName) return { success: false, message: '參數不齊全' };
-
-  const admins = getSheetData('管理員設定');
-  const admin = admins.find(a => a.admin_id === adminId);
-  if (!admin) return { success: false, message: '找不到管理員' };
-
-  try {
-    // 建立獨立資料庫與資料夾
-    const dbInfo = createProjectDatabase(projectName, admin.admin_folder_id);
-    const projectId = Utilities.getUuid();
-    
-    // 取得網址 (假設 GAS WebApp URL, 實際上前端由 GitHub Pages 託管, 可以產生帶 query string 的 login url)
-    const loginUrl = "?project=" + projectId;
-
-    const projectRecord = {
-      project_id: projectId,
-      admin_id: adminId,
-      project_name: projectName,
-      project_status: 'draft',
-      folder_id: dbInfo.folderId,
-      spreadsheet_id: dbInfo.spreadsheetId,
-      login_url: loginUrl,
-      start_date: '',
-      end_date: '',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    
-    appendRowData('專案索引', projectRecord);
-    logAction(adminId, projectId, '管理員', adminId, '建立專案', '專案', projectId, '建立新專案: ' + projectName);
-    
-    return { success: true, message: '專案建立成功', data: projectRecord };
-  } catch (err) {
-    return { success: false, message: '建立失敗: ' + err.toString() };
-  }
+function adminLogin_(input) {
+  var key=safeText_(input.adminKey,200); assertLoginRate_('admin',key); var hash=sha256_(key);
+  var admin=rows_(master_().getSheetByName('管理員設定')).find(function(a){return a.admin_key_hash===hash && a.status==='active';});
+  if(!admin){failLogin_('admin',key); throw apiError_('INVALID_LOGIN','管理金鑰錯誤，請重新輸入。');}
+  clearLoginRate_('admin',key); updateWhere_(master_().getSheetByName('管理員設定'),function(a){return a.admin_id===admin.admin_id;},{last_login_at:now_()});
+  logMaster_(admin.admin_id,'','管理員',admin.admin_id,'登入','系統','','管理員登入成功');
+  return {ok:true,data:{token:createSession_('admin',{admin_id:admin.admin_id,admin_name:admin.admin_name}),admin:{id:admin.admin_id,name:admin.admin_name}}};
 }
+function adminLogout_(input){session_(input.token,'admin');destroySession_(input.token);return {ok:true};}
+function adminSetFrontendUrl_(input){var admin=session_(input.token,'admin'),url=safeText_(input.url,500).replace(/\/$/,'');if(!/^https:\/\//.test(url))throw apiError_('VALIDATION','前端網址必須使用 HTTPS。');PropertiesService.getScriptProperties().setProperty('FRONTEND_URL',url);updateWhere_(master_().getSheetByName('專案索引'),function(p){return p.admin_id===admin.admin_id;},{updated_at:now_()});var sheet=master_().getSheetByName('專案索引'),projects=rows_(sheet);projects.filter(function(p){return p.admin_id===admin.admin_id;}).forEach(function(p){updateWhere_(sheet,function(x){return x.project_id===p.project_id&&x.admin_id===admin.admin_id;},{login_url:url+'/survey/'+p.project_id+'/login'});});return {ok:true,data:{url:url}};}
 
-function apiAdminDeleteProject(params) {
-  const { adminId, projectId } = params;
-  if (!adminId || !projectId) return { success: false, message: '參數不齊全' };
+function adminProjects_(input){var a=session_(input.token,'admin');var list=rows_(master_().getSheetByName('專案索引')).filter(function(p){return p.admin_id===a.admin_id;}).map(projectSummary_);return {ok:true,data:list};}
+function projectSummary_(p){var stats={total:0,loggedIn:0,draft:0,submitted:0,rate:0};try{stats=statsFor_(projectDb_(p));}catch(_){} return Object.assign({},p,{stats:stats});}
 
-  // TODO: 安全起見, 可以檢查該專案是否屬於此 admin
-  deleteRowData('專案索引', { project_id: projectId, admin_id: adminId });
-  logAction(adminId, projectId, '管理員', adminId, '刪除專案', '專案', projectId, '刪除專案');
-  
-  return { success: true, message: '專案刪除成功' };
-}
+function adminCreateProject_(input){var a=session_(input.token,'admin'),name=safeText_(input.project&&input.project.name,120);if(!name)throw apiError_('VALIDATION','請輸入問卷名稱。');
+  return withLock_(function(){var owner=rows_(master_().getSheetByName('管理員設定')).find(function(x){return x.admin_id===a.admin_id&&x.status==='active';});if(!owner)throw apiError_('FORBIDDEN','管理員已停用。');var s=createProjectStorage_(owner,name),now=now_(),payload=input.project||{};
+    putSettings_(s.spreadsheet.getSheetByName('專案設定'),{description:safeText_(payload.description,10000),completion_message:safeText_(payload.completionMessage||'您的問卷已成功送出。',1000),show_progress:payload.showProgress!==false,sections:[{id:'S1',title:'問卷內容',description:'',order:1}]});
+    var front=PropertiesService.getScriptProperties().getProperty('FRONTEND_URL')||'';var p={project_id:s.projectId,admin_id:a.admin_id,project_name:name,project_status:payload.status||'草稿',folder_id:s.folderId,spreadsheet_id:s.spreadsheetId,login_url:front?front.replace(/\/$/,'')+'/survey/'+s.projectId+'/login':'',start_date:payload.startDate||'',end_date:payload.endDate||'',created_at:now,updated_at:now};append_(master_().getSheetByName('專案索引'),p);logMaster_(a.admin_id,p.project_id,'管理員',a.admin_id,'建立專案','專案',p.project_id,'建立 '+name);return {ok:true,data:projectSummary_(p)};});}
 
-function apiAdminUpdateProjectStatus(params) {
-  const { adminId, projectId, status } = params;
-  if (!adminId || !projectId || !status) return { success: false, message: '參數不齊全' };
+function adminProject_(input){var auth=requireAdminProject_(input),ss=projectDb_(auth.project);return {ok:true,data:{project:projectSummary_(auth.project),settings:settingMap_(ss.getSheetByName('專案設定')),fields:rows_(ss.getSheetByName('使用者欄位設定')),schema:readSchema_(ss),users:safeUsers_(ss),linkedOptions:rows_(ss.getSheetByName('連結型選項設定'))}};}
 
-  updateRowData('專案索引', { project_id: projectId, admin_id: adminId }, { project_status: status, updated_at: new Date().toISOString() });
-  return { success: true, message: '狀態更新成功' };
-}
+function adminUpdateProject_(input){var auth=requireAdminProject_(input),p=input.project||{},allowed=['草稿','開放填寫','停止填寫','已截止','已封存'];if(p.status&&allowed.indexOf(p.status)<0)throw apiError_('VALIDATION','無效的專案狀態。');var changes={updated_at:now_()};if(p.name!==undefined){changes.project_name=safeText_(p.name,120);if(!changes.project_name)throw apiError_('VALIDATION','問卷名稱不可空白。');}if(p.status)changes.project_status=p.status;if(p.startDate!==undefined)changes.start_date=p.startDate;if(p.endDate!==undefined)changes.end_date=p.endDate;if(changes.start_date&&changes.end_date&&new Date(changes.start_date)>new Date(changes.end_date))throw apiError_('VALIDATION','截止日期不可早於開放日期。');
+  updateWhere_(master_().getSheetByName('專案索引'),function(x){return x.project_id===auth.project.project_id&&x.admin_id===auth.admin.admin_id;},changes);putSettings_(projectDb_(auth.project).getSheetByName('專案設定'),{description:p.description,completion_message:p.completionMessage,show_progress:p.showProgress});logProject_(auth.project,'管理員',auth.admin.admin_id,'修改專案','專案',auth.project.project_id,'更新專案設定');return {ok:true};}
+function adminArchiveProject_(input){input.project={status:'已封存'};return adminUpdateProject_(input);}
+function adminDeleteProject_(input){var auth=requireAdminProject_(input);if(input.confirmText!==auth.project.project_name)throw apiError_('CONFIRM_REQUIRED','請輸入完整問卷名稱確認刪除。');DriveApp.getFolderById(auth.project.folder_id).setTrashed(true);deleteWhere_(master_().getSheetByName('專案索引'),function(x){return x.project_id===auth.project.project_id&&x.admin_id===auth.admin.admin_id;});logMaster_(auth.admin.admin_id,auth.project.project_id,'管理員',auth.admin.admin_id,'刪除專案','專案',auth.project.project_id,'移至垃圾桶');return {ok:true};}
 
-// ---- 表單設計 API ----
+function adminCloneProject_(input){var auth=requireAdminProject_(input),source=projectDb_(auth.project),result=adminCreateProject_({token:input.token,project:{name:safeText_(input.name||auth.project.project_name+'（複製）',120),description:settingMap_(source.getSheetByName('專案設定')).description}}),target=projectDb_(result.data.spreadsheet_id);writeSchema_(target,readSchema_(source));replaceAll_(target.getSheetByName('使用者欄位設定'),rows_(source.getSheetByName('使用者欄位設定')));replaceAll_(target.getSheetByName('一般選項設定'),rows_(source.getSheetByName('一般選項設定')));return result;}
 
-function getProjectSpreadsheet(projectId) {
-  const projects = getSheetData('專案索引');
-  const project = projects.find(p => p.project_id === projectId);
-  if (!project) throw new Error('找不到專案');
-  return SpreadsheetApp.openById(project.spreadsheet_id);
-}
+function adminSaveSchema_(input){var auth=requireAdminProject_(input),schema=validateSchema_(input.schema||{});writeSchema_(projectDb_(auth.project),schema);logProject_(auth.project,'管理員',auth.admin.admin_id,'修改問卷','問卷',auth.project.project_id,'儲存 '+schema.questions.length+' 題');return {ok:true,data:schema};}
+function validateSchema_(schema){var types=['short','paragraph','single','checkbox','dropdown','scale','radio_grid','checkbox_grid','date','time','number','email','phone','heading','image_note','section','signature','multi_image','linked_multi'];var ids={},sections=(schema.sections||[]).map(function(s,i){return {id:s.id||('S'+(i+1)),title:safeText_(s.title,200),description:safeText_(s.description,2000),order:i+1};});if(!sections.length)sections=[{id:'S1',title:'問卷內容',description:'',order:1}];var sectionIds={};sections.forEach(function(s){if(sectionIds[s.id])throw apiError_('VALIDATION','區段 ID 重複。');sectionIds[s.id]=true;});
+  var questions=(schema.questions||[]).map(function(q,i){var id=q.id||('Q'+Utilities.getUuid().replace(/-/g,'').slice(0,10));if(ids[id])throw apiError_('VALIDATION','題目 ID 重複。');ids[id]=true;if(types.indexOf(q.type)<0)throw apiError_('VALIDATION','不支援的題型：'+q.type);return {id:id,sectionId:sectionIds[q.sectionId]?q.sectionId:sections[0].id,order:i+1,type:q.type,title:safeText_(q.title,500),description:safeText_(q.description,2000),required:Boolean(q.required),options:(q.options||[]).map(function(o){return typeof o==='string'?{value:o,label:o}:o;}),validation:q.validation||{},config:q.config||{}};});
+  assertNoJumpCycle_(sections,questions);return {sections:sections,questions:questions};}
+function assertNoJumpCycle_(sections,questions){var order={};sections.forEach(function(s,i){order[s.id]=i;});questions.forEach(function(q){(q.options||[]).forEach(function(o){if(o.nextSectionId&&o.nextSectionId!=='SUBMIT'&&order[o.nextSectionId]===undefined)throw apiError_('VALIDATION','跳題目標區段不存在。');if(o.nextSectionId&&o.nextSectionId!=='SUBMIT'&&order[o.nextSectionId]<=order[q.sectionId])throw apiError_('VALIDATION','條件跳題不可跳回目前或之前的區段。');});});}
+function writeSchema_(ss,schema){var q=ss.getSheetByName('問項設計'),o=ss.getSheetByName('一般選項設定'),now=now_();replaceAll_(q,schema.questions.map(function(x){return {question_id:x.id,section_id:x.sectionId,question_order:x.order,type:x.type,title:x.title,description:x.description,required:x.required,config_json:JSON.stringify(x.config||{}),validation_json:JSON.stringify(x.validation||{}),active:true,updated_at:now};}));var opts=[];schema.questions.forEach(function(x){(x.options||[]).forEach(function(v,i){opts.push({question_id:x.id,option_value:v.value,option_label:v.label,option_order:i+1,next_section_id:v.nextSectionId||'',active:true});});});replaceAll_(o,opts);putSettings_(ss.getSheetByName('專案設定'),{sections:schema.sections});}
+function readSchema_(ss){var settings=settingMap_(ss.getSheetByName('專案設定')),opts=rows_(ss.getSheetByName('一般選項設定')),questions=rows_(ss.getSheetByName('問項設計')).filter(function(q){return String(q.active)!=='false';}).map(function(q){return {id:q.question_id,sectionId:q.section_id,order:Number(q.question_order),type:q.type,title:q.title,description:q.description,required:String(q.required)==='true',config:parseJson_(q.config_json,{}),validation:parseJson_(q.validation_json,{}),options:opts.filter(function(o){return o.question_id===q.question_id&&String(o.active)!=='false';}).sort(function(a,b){return a.option_order-b.option_order;}).map(function(o){return {value:o.option_value,label:o.option_label,nextSectionId:o.next_section_id||''};})};});return {sections:settings.sections||[{id:'S1',title:'問卷內容',description:'',order:1}],questions:questions.sort(function(a,b){return a.order-b.order;})};}
 
-function getProjectFolderId(projectId) {
-  const projects = getSheetData('專案索引');
-  const project = projects.find(p => p.project_id === projectId);
-  if (!project) throw new Error('找不到專案');
-  return project.folder_id;
-}
+function adminSaveUserFields_(input){var auth=requireAdminProject_(input),fields=input.fields||[],keys={account:true,password:true},normalized=[{field_id:'SYSTEM_ACCOUNT',field_key:'account',field_label:safeText_(input.accountLabel||'業務員代碼',100),field_order:1,field_type:'text',statistical_dimension:true,active:true},{field_id:'SYSTEM_PASSWORD',field_key:'password',field_label:safeText_(input.passwordLabel||'生日後四碼',100),field_order:2,field_type:'password',statistical_dimension:false,active:true}];fields.forEach(function(f,i){var key=safeText_(f.field_key||f.key,60).replace(/[^A-Za-z0-9_]/g,'_');if(!key||keys[key])throw apiError_('VALIDATION','欄位名稱重複或為保留名稱。');keys[key]=true;normalized.push({field_id:f.field_id||Utilities.getUuid(),field_key:key,field_label:safeText_(f.field_label||f.label,100),field_order:i+3,field_type:f.field_type||'text',statistical_dimension:f.statistical_dimension!==false,active:f.active!==false});});replaceAll_(projectDb_(auth.project).getSheetByName('使用者欄位設定'),normalized);return {ok:true,data:normalized};}
 
-function apiAdminSaveFormSchema(params) {
-  const { adminId, projectId, schemaJson } = params;
-  try {
-    const ss = getProjectSpreadsheet(projectId);
-    const schemaSheet = ss.getSheetByName('FormSchema');
-    // 清空舊資料
-    schemaSheet.getRange(2, 1, schemaSheet.getMaxRows(), 2).clearContent();
-    schemaSheet.appendRow([JSON.stringify(schemaJson), new Date().toISOString()]);
-    return { success: true, message: '表單儲存成功' };
-  } catch(e) {
-    return { success: false, message: e.toString() };
-  }
-}
+function adminImportUsers_(input){var auth=requireAdminProject_(input),ss=projectDb_(auth.project),sheet=ss.getSheetByName('問卷使用者設定'),existing=rows_(sheet),map={};existing.forEach(function(u){map[u.account]=u;});var seen={},errors=[],mode=input.duplicateMode||'skip';(input.users||[]).forEach(function(raw,index){var account=safeText_(raw.account,100),password=safeText_(raw.password,200);if(!account)errors.push({row:index+1,message:'帳號不可空白'});if(seen[account])errors.push({row:index+1,message:'匯入資料內帳號重複'});seen[account]=true;if(!map[account]&&!password)errors.push({row:index+1,message:'新帳號密碼不可空白'});});if(errors.length)throw apiError_('VALIDATION','匯入資料有錯誤。',errors);
+  (input.users||[]).forEach(function(raw){var account=String(raw.account).trim(),old=map[account],profile=Object.assign({},old?parseJson_(old.profile_json,{}):{},raw.profile||{});if(old&&mode==='skip')return;if(old&&mode==='cancel')throw apiError_('DUPLICATE','發現重複帳號：'+account);map[account]={account:account,password_hash:raw.password?sha256_(String(raw.password).trim()):old.password_hash,profile_json:JSON.stringify(mode==='updateNonBlank'?Object.keys(profile).reduce(function(o,k){if(profile[k]!=='')o[k]=profile[k];return o;},{}):profile),status:raw.status||'active',created_at:old?old.created_at:now_(),updated_at:now_()};});replaceAll_(sheet,Object.keys(map).map(function(k){return map[k];}));return {ok:true,data:{count:Object.keys(map).length}};}
+function safeUsers_(ss){return rows_(ss.getSheetByName('問卷使用者設定')).map(function(u){return {account:u.account,profile:parseJson_(u.profile_json,{}),status:u.status,createdAt:u.created_at,updatedAt:u.updated_at};});}
+function adminUsers_(input){var auth=requireAdminProject_(input);return {ok:true,data:safeUsers_(projectDb_(auth.project))};}
+function adminSaveLinkedOptions_(input){var auth=requireAdminProject_(input),records=(input.options||[]).map(function(o,i){return {question_id:safeText_(o.questionId,100),account:safeText_(o.account,100),option_value:safeText_(o.value,500),option_label:safeText_(o.label||o.value,500),option_order:Number(o.order||i+1),active:o.active!==false};});replaceAll_(projectDb_(auth.project).getSheetByName('連結型選項設定'),records);return {ok:true,data:records};}
 
-function apiAdminGetFormSchema(params) {
-  const { projectId } = params; // 可以是前台或後台呼叫
-  try {
-    const ss = getProjectSpreadsheet(projectId);
-    const sheet = ss.getSheetByName('FormSchema');
-    const data = sheet.getDataRange().getValues();
-    if (data.length > 1) {
-      return { success: true, data: JSON.parse(data[1][0]) }; // schema_json 在 A2
-    }
-    return { success: true, data: null };
-  } catch(e) {
-    return { success: false, message: e.toString() };
-  }
-}
+function adminResponses_(input){var auth=requireAdminProject_(input),ss=projectDb_(auth.project);return {ok:true,data:{answers:rows_(ss.getSheetByName('使用者回答')),statuses:rows_(ss.getSheetByName('填寫狀態'))}};}
+function adminUpdateResponse_(input){var auth=requireAdminProject_(input),ss=projectDb_(auth.project),account=safeText_(input.account,100);if(!rows_(ss.getSheetByName('問卷使用者設定')).some(function(u){return u.account===account;}))throw apiError_('NOT_FOUND','找不到使用者。');saveAnswers_(ss,account,input.answers||{},input.status||'已暫存','管理員:'+auth.admin.admin_id,false);logProject_(auth.project,'管理員',auth.admin.admin_id,'管理員修改回答','回答',account,'代為修改回答');return {ok:true};}
+function adminStats_(input){var auth=requireAdminProject_(input),ss=projectDb_(auth.project),dimensions=input.dimensions||[],fields=rows_(ss.getSheetByName('使用者欄位設定')),allowed={account:true};fields.forEach(function(f){if(String(f.statistical_dimension)==='true'&&f.field_key!=='password')allowed[f.field_key]=true;});dimensions.forEach(function(d){if(!allowed[d])throw apiError_('VALIDATION','不可使用此統計維度。');});return {ok:true,data:{summary:statsFor_(ss),groups:groupStats_(ss,dimensions)}};}
+function statsFor_(ss){var users=safeUsers_(ss),statuses=rows_(ss.getSheetByName('填寫狀態')),by={};statuses.forEach(function(s){by[s.account]=s;});var submitted=0,draft=0,loggedIn=0;users.forEach(function(u){var s=by[u.account];if(s&&s.last_login_at)loggedIn++;if(s&&s.status==='已送出')submitted++;else if(s&&['已暫存','填寫中'].indexOf(s.status)>=0)draft++;});return {total:users.length,loggedIn:loggedIn,neverLoggedIn:users.length-loggedIn,draft:draft,submitted:submitted,notSubmitted:users.length-submitted,rate:users.length?Math.round(submitted/users.length*10000)/100:0};}
+function groupStats_(ss,dims){if(!dims.length)return[];var status={};rows_(ss.getSheetByName('填寫狀態')).forEach(function(s){status[s.account]=s.status;});var groups={};safeUsers_(ss).forEach(function(u){var p=Object.assign({account:u.account},u.profile),vals=dims.map(function(d){return String(p[d]||'未分類');}),key=JSON.stringify(vals);if(!groups[key])groups[key]={values:vals,total:0,submitted:0,accounts:[]};groups[key].total++;groups[key].accounts.push(u.account);if(status[u.account]==='已送出')groups[key].submitted++;});return Object.keys(groups).map(function(k){var g=groups[k];g.rate=g.total?Math.round(g.submitted/g.total*10000)/100:0;return g;});}
+function adminLogs_(input){var auth=requireAdminProject_(input);return {ok:true,data:rows_(projectDb_(auth.project).getSheetByName('專案操作紀錄')).slice(-500).reverse()};}
+function adminAttachments_(input){var auth=requireAdminProject_(input);return {ok:true,data:rows_(projectDb_(auth.project).getSheetByName('附件紀錄')).filter(function(a){return String(a.active)!=='false';})};}
+function adminDeleteAttachment_(input){var auth=requireAdminProject_(input);deactivateAttachment_(projectDb_(auth.project),input.attachmentId);return {ok:true};}
+function adminExport_(input){var auth=requireAdminProject_(input),ss=projectDb_(auth.project),kind=input.kind||'wide',csv=kind==='long'?longCsv_(ss):wideCsv_(ss);logProject_(auth.project,'管理員',auth.admin.admin_id,'下載資料','匯出',kind,'下載 CSV');return {ok:true,data:{fileName:auth.project.project_id+'_'+kind+'.csv',mimeType:'text/csv;charset=utf-8',base64:Utilities.base64Encode('\uFEFF'+csv)}};}
+function csvCell_(v){var s=typeof v==='string'?v:JSON.stringify(v===undefined?'':v);return '"'+s.replace(/"/g,'""')+'"';}
+function longCsv_(ss){var rows=rows_(ss.getSheetByName('使用者回答')),headers=PROJECT_SHEETS_['使用者回答'];return [headers.map(csvCell_).join(',')].concat(rows.map(function(r){return headers.map(function(h){return csvCell_(r[h]);}).join(',');})).join('\r\n');}
+function wideCsv_(ss){var schema=readSchema_(ss),users=safeUsers_(ss),answers=rows_(ss.getSheetByName('使用者回答')),map={};answers.forEach(function(a){(map[a.account]||(map[a.account]={}))[a.question_id]=parseJson_(a.answer_value,a.answer_value);});var headers=['account'].concat(schema.questions.map(function(q){return q.title;}));return [headers.map(csvCell_).join(',')].concat(users.map(function(u){return [u.account].concat(schema.questions.map(function(q){return (map[u.account]||{})[q.id]||'';})).map(csvCell_).join(',');})).join('\r\n');}
 
-// ---- 名單管理 API ----
-
-function apiAdminBatchImportUsers(params) {
-  const { adminId, projectId, users } = params; // users is array of {user_code, user_password, user_name}
-  try {
-    const ss = getProjectSpreadsheet(projectId);
-    const usersSheet = ss.getSheetByName('Users');
-    
-    // 為了簡單起見，直接 append
-    users.forEach(u => {
-      usersSheet.appendRow([u.user_code, u.user_password, u.user_name || '', 'active']);
-    });
-    return { success: true, message: '匯入成功' };
-  } catch(e) {
-    return { success: false, message: e.toString() };
-  }
-}
-
-function apiAdminGetUsers(params) {
-  const { adminId, projectId } = params;
-  try {
-    const ss = getProjectSpreadsheet(projectId);
-    const data = getSheetData('Users', ss);
-    return { success: true, data: data };
-  } catch(e) {
-    return { success: false, message: e.toString() };
-  }
-}
-
-function apiAdminGetStats(params) {
-  const { adminId, projectId } = params;
-  try {
-    const ss = getProjectSpreadsheet(projectId);
-    const responses = getSheetData('Responses', ss);
-    return { success: true, data: responses };
-  } catch(e) {
-    return { success: false, message: e.toString() };
-  }
-}
+function logMaster_(adminId,projectId,operatorType,operatorId,action,targetType,targetId,description){append_(master_().getSheetByName('系統操作紀錄'),{log_id:Utilities.getUuid(),admin_id:adminId,project_id:projectId,operator_type:operatorType,operator_id:operatorId,action:action,target_type:targetType,target_id:targetId,description:description,created_at:now_()});}
+function logProject_(project,operatorType,operatorId,action,targetType,targetId,description){append_(projectDb_(project).getSheetByName('專案操作紀錄'),{log_id:Utilities.getUuid(),operator_type:operatorType,operator_id:operatorId,action:action,target_type:targetType,target_id:targetId,description:description,created_at:now_()});}

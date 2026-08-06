@@ -1,184 +1,77 @@
-/**
- * Database.gs
- * 提供與 Google Sheet 及 Google Drive 互動的通用操作函式
- */
+var MASTER_SHEETS_ = {
+  '管理員設定': ['admin_id','admin_name','admin_key_hash','admin_folder_id','status','created_at','last_login_at'],
+  '專案索引': ['project_id','admin_id','project_name','project_status','folder_id','spreadsheet_id','login_url','start_date','end_date','created_at','updated_at'],
+  '系統設定': ['key','value','updated_at'],
+  '系統操作紀錄': ['log_id','admin_id','project_id','operator_type','operator_id','action','target_type','target_id','description','created_at']
+};
 
-function getMasterDbId() {
-  return PropertiesService.getScriptProperties().getProperty('MASTER_DB_ID');
-}
+var PROJECT_SHEETS_ = {
+  '專案設定': ['key','value','updated_at'],
+  '使用者欄位設定': ['field_id','field_key','field_label','field_order','field_type','statistical_dimension','active'],
+  '問卷使用者設定': ['account','password_hash','profile_json','status','created_at','updated_at'],
+  '問項設計': ['question_id','section_id','question_order','type','title','description','required','config_json','validation_json','active','updated_at'],
+  '一般選項設定': ['question_id','option_value','option_label','option_order','next_section_id','active'],
+  '連結型選項設定': ['question_id','account','option_value','option_label','option_order','active'],
+  '使用者回答': ['answer_id','account','question_id','answer_value','answer_display','attachment_ids','status','created_at','updated_at','submitted_at','updated_by'],
+  '填寫狀態': ['account','status','first_saved_at','last_saved_at','first_submitted_at','last_submitted_at','last_login_at','revision_count','updated_by'],
+  '附件紀錄': ['attachment_id','account','question_id','attachment_type','file_name','drive_file_id','file_size','mime_type','uploaded_at','active'],
+  '專案操作紀錄': ['log_id','operator_type','operator_id','action','target_type','target_id','description','created_at']
+};
 
-function getMasterDb() {
-  const id = getMasterDbId();
-  if (!id) throw new Error("MASTER_DB_ID 未設定");
-  return SpreadsheetApp.openById(id);
-}
+function now_() { return new Date().toISOString(); }
+function withLock_(fn) { var lock = LockService.getScriptLock(); lock.waitLock(30000); try { return fn(); } finally { lock.releaseLock(); } }
+function cleanCell_(value) { return value instanceof Date ? value.toISOString() : value; }
 
-/**
- * 讀取工作表並回傳以欄位名稱為 key 的物件陣列
- */
-function getSheetData(sheetName, spreadsheet = getMasterDb()) {
-  const sheet = spreadsheet.getSheetByName(sheetName);
-  if (!sheet) return [];
-  
-  const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return [];
-  
-  const headers = data[0];
-  const rows = data.slice(1);
-  
-  return rows.map(row => {
-    let obj = {};
-    headers.forEach((header, index) => {
-      obj[header] = row[index];
-    });
-    return obj;
+function ensureSheets_(ss, definitions) {
+  Object.keys(definitions).forEach(function(name) {
+    var sheet = ss.getSheetByName(name) || ss.insertSheet(name);
+    var headers = definitions[name];
+    if (!sheet.getLastRow()) sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold').setBackground('#dbeafe');
+    else {
+      var current = sheet.getRange(1, 1, 1, Math.max(headers.length, sheet.getLastColumn())).getValues()[0];
+      headers.forEach(function(header, index) { if (!current[index]) sheet.getRange(1, index + 1).setValue(header); });
+    }
+    sheet.setFrozenRows(1);
   });
 }
 
-/**
- * 將新紀錄寫入工作表
- */
-function appendRowData(sheetName, recordObj, spreadsheet = getMasterDb()) {
-  const sheet = spreadsheet.getSheetByName(sheetName);
-  if (!sheet) throw new Error("找不到工作表: " + sheetName);
-  
-  const headers = sheet.getDataRange().getValues()[0];
-  const rowData = headers.map(header => recordObj[header] !== undefined ? recordObj[header] : "");
-  
-  sheet.appendRow(rowData);
+function rows_(sheet) {
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  var values = sheet.getDataRange().getValues(); var headers = values.shift().map(String);
+  return values.filter(function(row) { return row.some(function(v) { return v !== ''; }); }).map(function(row) {
+    var item = {}; headers.forEach(function(h, i) { item[h] = cleanCell_(row[i]); }); return item;
+  });
 }
 
-/**
- * 更新符合條件的第一筆紀錄
- */
-function updateRowData(sheetName, matchObj, updateObj, spreadsheet = getMasterDb()) {
-  const sheet = spreadsheet.getSheetByName(sheetName);
-  if (!sheet) throw new Error("找不到工作表: " + sheetName);
-  
-  const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return false;
-  
-  const headers = data[0];
-  const matchKeys = Object.keys(matchObj);
-  
-  for (let i = 1; i < data.length; i++) {
-    const row = data[i];
-    let isMatch = true;
-    
-    for (let k of matchKeys) {
-      const colIndex = headers.indexOf(k);
-      if (colIndex === -1 || row[colIndex] !== matchObj[k]) {
-        isMatch = false;
-        break;
-      }
-    }
-    
-    if (isMatch) {
-      const updateKeys = Object.keys(updateObj);
-      for (let k of updateKeys) {
-        const colIndex = headers.indexOf(k);
-        if (colIndex !== -1) {
-          sheet.getRange(i + 1, colIndex + 1).setValue(updateObj[k]);
-        }
-      }
-      return true; // 成功更新
-    }
+function append_(sheet, record) {
+  var headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
+  sheet.appendRow(headers.map(function(h) { return record[h] === undefined ? '' : record[h]; })); return record;
+}
+
+function replaceAll_(sheet, records) {
+  var last = sheet.getLastRow(); if (last > 1) sheet.getRange(2,1,last-1,sheet.getLastColumn()).clearContent();
+  if (!records.length) return;
+  var headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
+  sheet.getRange(2,1,records.length,headers.length).setValues(records.map(function(r) { return headers.map(function(h) { return r[h] === undefined ? '' : r[h]; }); }));
+}
+
+function updateWhere_(sheet, predicate, changes) {
+  var values = sheet.getDataRange().getValues(); if (values.length < 2) return false;
+  var headers = values[0].map(String); var changed = false;
+  for (var r=1; r<values.length; r++) {
+    var item={}; headers.forEach(function(h,i){ item[h]=cleanCell_(values[r][i]); });
+    if (predicate(item)) { Object.keys(changes).forEach(function(k){ var c=headers.indexOf(k); if(c>=0) values[r][c]=changes[k]; }); changed=true; }
   }
-  return false; // 找不到符合的紀錄
+  if (changed) sheet.getRange(1,1,values.length,headers.length).setValues(values); return changed;
 }
 
-/**
- * 刪除符合條件的紀錄 (因可能有多筆，可自行決定要不要都刪)
- */
-function deleteRowData(sheetName, matchObj, spreadsheet = getMasterDb()) {
-  const sheet = spreadsheet.getSheetByName(sheetName);
-  if (!sheet) throw new Error("找不到工作表: " + sheetName);
-  
-  const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return 0;
-  
-  const headers = data[0];
-  const matchKeys = Object.keys(matchObj);
-  let deletedCount = 0;
-  
-  // 由下往上刪除以避免索引問題
-  for (let i = data.length - 1; i >= 1; i--) {
-    const row = data[i];
-    let isMatch = true;
-    
-    for (let k of matchKeys) {
-      const colIndex = headers.indexOf(k);
-      if (colIndex === -1 || row[colIndex] !== matchObj[k]) {
-        isMatch = false;
-        break;
-      }
-    }
-    
-    if (isMatch) {
-      sheet.deleteRow(i + 1);
-      deletedCount++;
-    }
-  }
-  
-  return deletedCount;
+function deleteWhere_(sheet, predicate) {
+  var data = rows_(sheet), kept = data.filter(function(x){ return !predicate(x); }); var count=data.length-kept.length; replaceAll_(sheet,kept); return count;
 }
 
-/**
- * 記錄操作日誌
- */
-function logAction(admin_id, project_id, operator_type, operator_id, action, target_type, target_id, description) {
-  const logObj = {
-    log_id: Utilities.getUuid(),
-    admin_id: admin_id,
-    project_id: project_id || '',
-    operator_type: operator_type,
-    operator_id: operator_id,
-    action: action,
-    target_type: target_type,
-    target_id: target_id,
-    description: description,
-    created_at: new Date().toISOString()
-  };
-  appendRowData('系統操作紀錄', logObj);
-}
-
-/**
- * 為新專案建立獨立的資料夾與資料庫
- */
-function createProjectDatabase(projectName, adminFolderId) {
-  const adminFolder = DriveApp.getFolderById(adminFolderId);
-  const projectFolder = adminFolder.createFolder(projectName + '_' + Utilities.getUuid().split('-')[0]);
-  
-  const ss = SpreadsheetApp.create(projectName + '_資料庫');
-  const dbFileId = ss.getId();
-  const file = DriveApp.getFileById(dbFileId);
-  file.moveTo(projectFolder);
-  
-  // 建立必要工作表
-  let schemaSheet = ss.insertSheet('FormSchema');
-  schemaSheet.appendRow(['schema_json', 'updated_at']); // 儲存整個問卷結構 JSON
-  
-  let usersSheet = ss.insertSheet('Users');
-  usersSheet.appendRow(['user_code', 'user_password', 'user_name', 'status']);
-  
-  let responsesSheet = ss.insertSheet('Responses');
-  responsesSheet.appendRow(['response_id', 'user_code', 'status', 'start_time', 'submit_time', 'data_json']);
-  
-  let draftsSheet = ss.insertSheet('Drafts');
-  draftsSheet.appendRow(['user_code', 'draft_json', 'updated_at']);
-  
-  let logsSheet = ss.insertSheet('Logs');
-  logsSheet.appendRow(['log_id', 'user_code', 'action', 'created_at']);
-  
-  // 刪除預設工作表
-  const defaultSheet = ss.getSheetByName('工作表1') || ss.getSheetByName('Sheet1');
-  if (defaultSheet) {
-    ss.deleteSheet(defaultSheet);
-  }
-  
-  return {
-    folderId: projectFolder.getId(),
-    spreadsheetId: dbFileId
-  };
-}
-
+function master_() { var id=PropertiesService.getScriptProperties().getProperty('MASTER_SPREADSHEET_ID'); if(!id) throw apiError_('NOT_INITIALIZED','系統尚未初始化。'); return SpreadsheetApp.openById(id); }
+function projectById_(id) { var p=rows_(master_().getSheetByName('專案索引')).find(function(x){ return String(x.project_id)===String(id); }); if(!p) throw apiError_('NOT_FOUND','找不到此專案。'); return p; }
+function projectDb_(project) { return SpreadsheetApp.openById((project.spreadsheet_id || project)); }
+function settingMap_(sheet) { var out={}; rows_(sheet).forEach(function(x){ out[x.key]=parseJson_(x.value,x.value); }); return out; }
+function parseJson_(value, fallback) { if(typeof value!=='string') return value; try{return JSON.parse(value);}catch(_){return fallback;} }
+function putSettings_(sheet, values) { var current=rows_(sheet); Object.keys(values).forEach(function(k){ var found=current.find(function(x){return x.key===k;}); var val=typeof values[k]==='string'?values[k]:JSON.stringify(values[k]); if(found) updateWhere_(sheet,function(x){return x.key===k;},{value:val,updated_at:now_()}); else append_(sheet,{key:k,value:val,updated_at:now_()}); }); }

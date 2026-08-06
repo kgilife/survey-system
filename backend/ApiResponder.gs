@@ -1,125 +1,25 @@
-// ==========================================
-// 填寫端 (Responder) API
-// ==========================================
+function respondentProject_(input){var p=projectById_(input.projectId),ss=projectDb_(p),settings=settingMap_(ss.getSheetByName('專案設定')),fields=rows_(ss.getSheetByName('使用者欄位設定'));return {ok:true,data:{id:p.project_id,name:p.project_name,status:p.project_status,startDate:p.start_date,endDate:p.end_date,description:settings.description||'',accountLabel:(fields.find(function(f){return f.field_key==='account';})||{}).field_label||'業務員代碼',passwordLabel:(fields.find(function(f){return f.field_key==='password';})||{}).field_label||'生日後四碼',writable:isWritable_(p)}};}
 
-function apiResponderLogin(params) {
-  const { projectId, userCode, userPassword } = params;
-  if (!projectId || !userCode || !userPassword) return { success: false, message: '參數不齊全' };
+function respondentLogin_(input){var p=projectById_(input.projectId),account=safeText_(input.account,100),password=safeText_(input.password,200),rate=p.project_id+':'+account;assertLoginRate_('respondent',rate);var ss=projectDb_(p),u=rows_(ss.getSheetByName('問卷使用者設定')).find(function(x){return x.account===account&&x.password_hash===sha256_(password)&&x.status==='active';});if(!u){failLogin_('respondent',rate);throw apiError_('INVALID_LOGIN','登入資料錯誤，請確認後重新輸入。');}clearLoginRate_('respondent',rate);touchStatus_(ss,account,{last_login_at:now_(),updated_by:'使用者'});logProject_(p,'使用者',account,'使用者登入','使用者',account,'登入問卷');return {ok:true,data:{token:createSession_('respondent',{project_id:p.project_id,account:account}),account:account,profile:parseJson_(u.profile_json,{}),writable:isWritable_(p)}};}
+function respondentLogout_(input){requireRespondent_(input);destroySession_(input.token);return {ok:true};}
 
-  try {
-    const ss = getProjectSpreadsheet(projectId);
-    const users = getSheetData('Users', ss);
-    
-    const user = users.find(u => u.user_code === userCode && u.user_password === userPassword);
-    if (!user) return { success: false, message: '帳號或密碼錯誤' };
-    if (user.status !== 'active') return { success: false, message: '此帳號已停用' };
+function respondentSurvey_(input){var user=requireRespondent_(input),p=projectById_(input.projectId),ss=projectDb_(p),settings=settingMap_(ss.getSheetByName('專案設定')),schema=readSchema_(ss),linked=rows_(ss.getSheetByName('連結型選項設定')).filter(function(o){return o.account===user.account&&String(o.active)!=='false';}),answers={};schema.questions.forEach(function(q){if(q.type==='linked_multi')q.options=linked.filter(function(o){return o.question_id===q.id;}).sort(function(a,b){return a.option_order-b.option_order;}).map(function(o){return {value:o.option_value,label:o.option_label};});});rows_(ss.getSheetByName('使用者回答')).filter(function(a){return a.account===user.account;}).forEach(function(a){answers[a.question_id]=parseJson_(a.answer_value,a.answer_value);});var status=rows_(ss.getSheetByName('填寫狀態')).find(function(s){return s.account===user.account;})||{account:user.account,status:'未填寫'};return {ok:true,data:{project:{id:p.project_id,name:p.project_name,status:p.project_status,description:settings.description||'',completionMessage:settings.completion_message||'您的問卷已成功送出。',showProgress:settings.show_progress!==false,writable:isWritable_(p)},schema:schema,linkedOptions:linked.map(function(o){return {questionId:o.question_id,value:o.option_value,label:o.option_label,order:o.option_order};}),answers:answers,status:status,revision:String(status.last_saved_at||status.last_submitted_at||'')}};}
 
-    return { 
-      success: true, 
-      message: '登入成功', 
-      data: {
-        user_code: user.user_code,
-        user_name: user.user_name
-      }
-    };
-  } catch (err) {
-    return { success: false, message: '登入失敗: ' + err.toString() };
-  }
-}
+function respondentSave_(input){var user=requireRespondent_(input),p=projectById_(input.projectId);assertWritable_(p);var ss=projectDb_(p);assertRevision_(ss,user.account,input.revision);saveAnswers_(ss,user.account,input.answers||{},'已暫存','使用者:'+user.account,false);logProject_(p,'使用者',user.account,'使用者暫存','回答',user.account,'暫存回答');var state=rows_(ss.getSheetByName('填寫狀態')).find(function(s){return s.account===user.account;});return {ok:true,data:{status:state,revision:state.last_saved_at},message:'已暫存，您可以稍後再次登入繼續填寫。'};}
+function respondentSubmit_(input){var user=requireRespondent_(input),p=projectById_(input.projectId);assertWritable_(p);var ss=projectDb_(p);assertRevision_(ss,user.account,input.revision);var schema=readSchema_(ss),answers=input.answers||{},visible=visibleQuestionIds_(schema,answers);validateAnswers_(ss,user.account,schema,answers,visible);var submittedAnswers={};Object.keys(answers).forEach(function(id){if(visible[id])submittedAnswers[id]=answers[id];});saveAnswers_(ss,user.account,submittedAnswers,'已送出','使用者:'+user.account,true);logProject_(p,'使用者',user.account,'使用者送出','回答',user.account,'送出問卷');var state=rows_(ss.getSheetByName('填寫狀態')).find(function(s){return s.account===user.account;});return {ok:true,data:{status:state,revision:state.last_submitted_at},message:'已送出'};}
+function assertWritable_(p){if(!isWritable_(p))throw apiError_('READ_ONLY','本問卷已截止，目前僅能查看先前填寫內容。');}
+function assertRevision_(ss,account,revision){if(!revision)return;var s=rows_(ss.getSheetByName('填寫狀態')).find(function(x){return x.account===account;});var latest=s&&String(s.last_saved_at||s.last_submitted_at||'');if(latest&&latest!==String(revision))throw apiError_('CONFLICT','您的回答已在其他裝置更新，請重新載入最新內容後再儲存。');}
 
-function apiResponderSaveDraft(params) {
-  const { projectId, userCode, draftJson } = params;
-  if (!projectId || !userCode) return { success: false, message: '參數不齊全' };
+function visibleQuestionIds_(schema,answers){var sections=schema.sections.slice().sort(function(a,b){return a.order-b.order;}),visible={},i=0,guard=0;while(i<sections.length&&guard++<sections.length+2){var section=sections[i];schema.questions.filter(function(q){return q.sectionId===section.id;}).forEach(function(q){visible[q.id]=true;});var jump='';schema.questions.filter(function(q){return q.sectionId===section.id&&(q.type==='single'||q.type==='dropdown');}).forEach(function(q){var val=answers[q.id],opt=(q.options||[]).find(function(o){return String(o.value)===String(val);});if(opt&&opt.nextSectionId)jump=opt.nextSectionId;});if(jump==='SUBMIT')break;if(jump){var next=sections.findIndex(function(s){return s.id===jump;});if(next<=i)throw apiError_('VALIDATION','問卷跳題設定形成循環。');i=next;}else i++;}return visible;}
+function emptyAnswer_(v){return v===undefined||v===null||v===''||(Array.isArray(v)&&!v.length);}
+function validateAnswers_(ss,account,schema,answers,visible){var errors=[];schema.questions.forEach(function(q){if(!visible[q.id]||['heading','image_note','section'].indexOf(q.type)>=0)return;var v=answers[q.id],rule=q.validation||{};if(q.required&&emptyAnswer_(v))errors.push({questionId:q.id,message:rule.message||'此題為必填'});if(emptyAnswer_(v))return;var text=String(v);if(rule.minLength&&text.length<Number(rule.minLength))errors.push({questionId:q.id,message:rule.message||'字數不足'});if(rule.maxLength&&text.length>Number(rule.maxLength))errors.push({questionId:q.id,message:rule.message||'字數過多'});if(q.type==='email'&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text))errors.push({questionId:q.id,message:rule.message||'Email 格式錯誤'});if(q.type==='phone'&&!/^[0-9+()\-\s]{7,20}$/.test(text))errors.push({questionId:q.id,message:rule.message||'電話格式錯誤'});if(q.type==='number'){var n=Number(v);if(!isFinite(n)||(rule.min!==undefined&&n<Number(rule.min))||(rule.max!==undefined&&n>Number(rule.max)))errors.push({questionId:q.id,message:rule.message||'數字超出允許範圍'});}if(rule.pattern){try{if(!new RegExp(rule.pattern).test(text))errors.push({questionId:q.id,message:rule.message||'格式不符'});}catch(_){throw apiError_('VALIDATION','題目正規表示式設定錯誤。');}}if(Array.isArray(v)){if(rule.minSelections&&v.length<Number(rule.minSelections))errors.push({questionId:q.id,message:rule.message||'選取項目不足'});if(rule.maxSelections&&v.length>Number(rule.maxSelections))errors.push({questionId:q.id,message:rule.message||'選取項目過多'});}});
+  schema.questions.filter(function(q){return q.type==='linked_multi'&&visible[q.id]&&!emptyAnswer_(answers[q.id]);}).forEach(function(q){var allowed={};rows_(ss.getSheetByName('連結型選項設定')).filter(function(o){return o.question_id===q.id&&o.account===account&&String(o.active)!=='false';}).forEach(function(o){allowed[o.option_value]=true;});(Array.isArray(answers[q.id])?answers[q.id]:[answers[q.id]]).forEach(function(v){if(!allowed[v])errors.push({questionId:q.id,message:'此選項不屬於目前帳號'});});});if(errors.length)throw apiError_('VALIDATION','部分題目尚未完成或格式錯誤。',errors);}
 
-  try {
-    const ss = getProjectSpreadsheet(projectId);
-    const draftsSheet = ss.getSheetByName('Drafts');
-    
-    // 檢查是否已有暫存
-    const drafts = getSheetData('Drafts', ss);
-    const existing = drafts.find(d => d.user_code === userCode);
-    
-    const updatedTime = new Date().toISOString();
-    
-    if (existing) {
-      updateRowData('Drafts', { user_code: userCode }, { draft_json: JSON.stringify(draftJson), updated_at: updatedTime }, ss);
-    } else {
-      draftsSheet.appendRow([userCode, JSON.stringify(draftJson), updatedTime]);
-    }
-    
-    return { success: true, message: '暫存成功', data: { updated_at: updatedTime } };
-  } catch (err) {
-    return { success: false, message: '暫存失敗: ' + err.toString() };
-  }
-}
+function saveAnswers_(ss,account,answers,status,updatedBy,submitted){var sheet=ss.getSheetByName('使用者回答'),current=rows_(sheet),now=now_(),schema=readSchema_(ss),valid={};schema.questions.forEach(function(q){valid[q.id]=true;});Object.keys(answers).forEach(function(qid){if(!valid[qid])return;var old=current.find(function(a){return a.account===account&&a.question_id===qid;}),value=answers[qid],attachments=[];if(Array.isArray(value)&&value.length&&typeof value[0]==='object'&&value[0].attachmentId)attachments=value.map(function(x){return x.attachmentId;});else if(value&&typeof value==='object'&&value.attachmentId)attachments=[value.attachmentId];var record={answer_id:old?old.answer_id:Utilities.getUuid(),account:account,question_id:qid,answer_value:JSON.stringify(value),answer_display:Array.isArray(value)?value.map(function(x){return typeof x==='object'?(x.fileName||x.attachmentId):x;}).join('、'):String(value===undefined?'':value),attachment_ids:JSON.stringify(attachments),status:status,created_at:old?old.created_at:now,updated_at:now,submitted_at:submitted?now:(old?old.submitted_at:''),updated_by:updatedBy};if(old)Object.assign(old,record);else current.push(record);});replaceAll_(sheet,current.filter(function(a){return a.account!==account||valid[a.question_id];}));var oldStatus=rows_(ss.getSheetByName('填寫狀態')).find(function(s){return s.account===account;}),changes={status:status,updated_by:updatedBy};if(submitted){changes.first_submitted_at=oldStatus&&oldStatus.first_submitted_at||now;changes.last_submitted_at=now;changes.revision_count=oldStatus&&oldStatus.first_submitted_at?Number(oldStatus.revision_count||0)+1:Number(oldStatus&&oldStatus.revision_count||0);}else{changes.first_saved_at=oldStatus&&oldStatus.first_saved_at||now;changes.last_saved_at=now;}touchStatus_(ss,account,changes);}
+function touchStatus_(ss,account,changes){var sheet=ss.getSheetByName('填寫狀態'),found=updateWhere_(sheet,function(s){return s.account===account;},changes);if(!found)append_(sheet,Object.assign({account:account,status:'未填寫',first_saved_at:'',last_saved_at:'',first_submitted_at:'',last_submitted_at:'',last_login_at:'',revision_count:0,updated_by:''},changes));}
 
-function apiResponderGetDraft(params) {
-  const { projectId, userCode } = params;
-  try {
-    const ss = getProjectSpreadsheet(projectId);
-    const drafts = getSheetData('Drafts', ss);
-    const existing = drafts.find(d => d.user_code === userCode);
-    
-    if (existing) {
-      return { success: true, data: JSON.parse(existing.draft_json) };
-    }
-    return { success: true, data: null };
-  } catch (err) {
-    return { success: false, message: '取得暫存失敗: ' + err.toString() };
-  }
-}
-
-function apiResponderSubmitSurvey(params) {
-  const { projectId, userCode, dataJson, startTime } = params;
-  if (!projectId || !userCode) return { success: false, message: '參數不齊全' };
-
-  try {
-    const ss = getProjectSpreadsheet(projectId);
-    const responsesSheet = ss.getSheetByName('Responses');
-    
-    const submitTime = new Date().toISOString();
-    const responseId = Utilities.getUuid();
-    
-    responsesSheet.appendRow([responseId, userCode, 'submitted', startTime || '', submitTime, JSON.stringify(dataJson)]);
-    
-    // 送出後刪除暫存
-    deleteRowData('Drafts', { user_code: userCode }, ss);
-    
-    return { success: true, message: '問卷送出成功' };
-  } catch (err) {
-    return { success: false, message: '送出失敗: ' + err.toString() };
-  }
-}
-
-// 檔案上傳 (共用)
-// params: { projectId, filename, mimeType, base64Data }
-function apiUploadFile(params) {
-  const { projectId, filename, mimeType, base64Data } = params;
-  if (!projectId || !base64Data) return { success: false, message: '參數不齊全' };
-
-  try {
-    const folderId = getProjectFolderId(projectId);
-    const folder = DriveApp.getFolderById(folderId);
-    
-    // 檢查是否有 Uploads 資料夾
-    let uploadsFolder;
-    const folders = folder.getFoldersByName('Uploads');
-    if (folders.hasNext()) {
-      uploadsFolder = folders.next();
-    } else {
-      uploadsFolder = folder.createFolder('Uploads');
-    }
-    
-    // Decode base64
-    const data = Utilities.base64Decode(base64Data);
-    const blob = Utilities.newBlob(data, mimeType, filename);
-    
-    const file = uploadsFolder.createFile(blob);
-    // 設定共用權限為知道連結的人可檢視 (如果是圖片預覽需要)
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    
-    return { success: true, url: file.getDownloadUrl(), fileId: file.getId() };
-  } catch (err) {
-    return { success: false, message: '上傳失敗: ' + err.toString() };
-  }
-}
+function respondentUpload_(input){var user=requireRespondent_(input),p=projectById_(input.projectId);assertWritable_(p);var type=input.type==='signature'?'signature':'image',mime=String(input.mimeType||'').toLowerCase(),allowed={'image/jpeg':'jpg','image/png':'png','image/heic':'heic','image/heif':'heic','image/webp':'webp'};if(type==='signature'&&mime!=='image/png')throw apiError_('VALIDATION','簽名必須為 PNG。');if(!allowed[mime])throw apiError_('VALIDATION','不支援的圖片格式。');var bytes;try{bytes=Utilities.base64Decode(String(input.base64||'').replace(/^data:[^;]+;base64,/,''));}catch(_){throw apiError_('VALIDATION','檔案內容格式錯誤。');}if(!bytes.length||bytes.length>5*1024*1024)throw apiError_('VALIDATION','單一檔案不可超過 5 MB。');assertImageMagic_(bytes,mime);var ss=projectDb_(p),qid=safeText_(input.questionId,100),question=readSchema_(ss).questions.find(function(q){return q.id===qid;});if(!question||(type==='signature'&&question.type!=='signature')||(type==='image'&&question.type!=='multi_image'))throw apiError_('VALIDATION','題型與附件類型不符。');var parent=DriveApp.getFolderById(p.folder_id),iter=parent.getFoldersByName(type==='signature'?'signatures':'uploads'),folder=iter.hasNext()?iter.next():parent.createFolder(type==='signature'?'signatures':'uploads'),name=[p.project_id,user.account.replace(/[^A-Za-z0-9_-]/g,'_'),qid,Date.now(),input.sequence||1].join('_')+'.'+allowed[mime],file=folder.createFile(Utilities.newBlob(bytes,mime,name)),id=Utilities.getUuid();append_(ss.getSheetByName('附件紀錄'),{attachment_id:id,account:user.account,question_id:qid,attachment_type:type,file_name:name,drive_file_id:file.getId(),file_size:bytes.length,mime_type:mime,uploaded_at:now_(),active:true});return {ok:true,data:{attachmentId:id,fileName:name,mimeType:mime,size:bytes.length}};}
+function assertImageMagic_(b,mime){function u(i){return (b[i]+256)%256;}var ok=mime==='image/jpeg'?u(0)===255&&u(1)===216&&u(2)===255:mime==='image/png'?u(0)===137&&u(1)===80&&u(2)===78&&u(3)===71:mime==='image/webp'?String.fromCharCode(u(0),u(1),u(2),u(3))==='RIFF'&&String.fromCharCode(u(8),u(9),u(10),u(11))==='WEBP':(b.length>12&&String.fromCharCode(u(4),u(5),u(6),u(7))==='ftyp');if(!ok)throw apiError_('VALIDATION','檔案內容與宣告格式不符。');}
+function respondentDeleteAttachment_(input){var user=requireRespondent_(input),p=projectById_(input.projectId);assertWritable_(p);deactivateAttachment_(projectDb_(p),input.attachmentId,user.account);return {ok:true};}
+function deactivateAttachment_(ss,id,account){var record=rows_(ss.getSheetByName('附件紀錄')).find(function(a){return a.attachment_id===id&&(!account||a.account===account)&&String(a.active)!=='false';});if(!record)throw apiError_('NOT_FOUND','找不到附件。');try{DriveApp.getFileById(record.drive_file_id).setTrashed(true);}catch(_){}updateWhere_(ss.getSheetByName('附件紀錄'),function(a){return a.attachment_id===id;},{active:false});}
+function attachmentDownload_(input){var kind=input.role==='admin'?'admin':'respondent',identity=session_(input.token,kind),p=projectById_(input.projectId);if(kind==='admin'&&p.admin_id!==identity.admin_id)throw apiError_('FORBIDDEN','無權存取附件。');var ss=projectDb_(p),a=rows_(ss.getSheetByName('附件紀錄')).find(function(x){return x.attachment_id===input.attachmentId&&String(x.active)!=='false';});if(!a||(kind==='respondent'&&a.account!==identity.account))throw apiError_('FORBIDDEN','無權存取附件。');var blob=DriveApp.getFileById(a.drive_file_id).getBlob();return {ok:true,data:{fileName:a.file_name,mimeType:a.mime_type,base64:Utilities.base64Encode(blob.getBytes())}};}

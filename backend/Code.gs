@@ -1,162 +1,49 @@
-/**
- * Code.gs
- * Google Apps Script Web App 的主要進入點
- * 處理 GET 與 POST 請求
- */
+/** 問卷調查系統 Web App 入口。所有動作只接受明確白名單。 */
+function doGet(e) { return routeRequest_(e, 'GET'); }
+function doPost(e) { return routeRequest_(e, 'POST'); }
 
-function doGet(e) {
-  return handleRequest(e, 'GET');
-}
-
-function doPost(e) {
-  return handleRequest(e, 'POST');
-}
-
-function handleRequest(e, method) {
-  // 設定 CORS headers 回應 (雖然 GAS 預設對 ContentService JSON 會有自己的機制，但在回應時我們標準化輸出格式)
-  let responseData = {
-    success: false,
-    message: "Unknown error",
-    data: null
-  };
-
+function routeRequest_(e, method) {
   try {
-    let params;
-    if (method === 'GET') {
-      params = e.parameter;
-    } else {
-      // POST 可能是 JSON payload
-      if (e.postData && e.postData.contents) {
-        params = JSON.parse(e.postData.contents);
-      } else {
-        params = e.parameter;
-      }
-    }
-
-    const action = params.action;
-    
-    switch (action) {
-      case 'admin_login':
-        responseData = apiAdminLogin(params);
-        break;
-      case 'admin_get_projects':
-        responseData = apiAdminGetProjects(params);
-        break;
-      
-      // Admin Project APIs
-      case 'admin_create_project':
-        responseData = apiAdminCreateProject(params);
-        break;
-      case 'admin_delete_project':
-        responseData = apiAdminDeleteProject(params);
-        break;
-      case 'admin_update_project_status':
-        responseData = apiAdminUpdateProjectStatus(params);
-        break;
-        
-      // Admin Form & User APIs
-      case 'admin_save_form_schema':
-        responseData = apiAdminSaveFormSchema(params);
-        break;
-      case 'admin_get_form_schema':
-        responseData = apiAdminGetFormSchema(params);
-        break;
-      case 'admin_batch_import_users':
-        responseData = apiAdminBatchImportUsers(params);
-        break;
-      case 'admin_get_users':
-        responseData = apiAdminGetUsers(params);
-        break;
-      case 'admin_get_stats':
-        responseData = apiAdminGetStats(params);
-        break;
-
-      // Responder APIs
-      case 'responder_login':
-        responseData = apiResponderLogin(params);
-        break;
-      case 'responder_get_survey':
-        // get survey is essentially getting form schema
-        responseData = apiAdminGetFormSchema(params);
-        break;
-      case 'responder_save_draft':
-        responseData = apiResponderSaveDraft(params);
-        break;
-      case 'responder_get_draft':
-        responseData = apiResponderGetDraft(params);
-        break;
-      case 'responder_submit_survey':
-        responseData = apiResponderSubmitSurvey(params);
-        break;
-        
-      // File Upload API
-      case 'upload_file':
-        responseData = apiUploadFile(params);
-        break;
-
-      case 'ping':
-        responseData = { success: true, message: 'pong', data: new Date().toISOString() };
-        break;
-      default:
-        responseData = { success: false, message: 'Action not found: ' + action, data: null };
-    }
+    var input = parseRequest_(e, method);
+    var action = String(input.action || '');
+    if (method === 'GET' && action === 'ping') return json_({ ok: true, data: { pong: true, time: now_() } });
+    var handler = API_ROUTES_[action];
+    if (!handler) throw apiError_('NOT_FOUND', '找不到指定功能。');
+    return json_(handler(input));
   } catch (error) {
-    responseData = { success: false, message: error.toString(), data: null };
-  }
-
-  // 將結果轉為 JSON 字串回傳
-  return ContentService.createTextOutput(JSON.stringify(responseData))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-// ==========================================
-// API 邏輯實作
-// ==========================================
-
-function apiAdminLogin(params) {
-  const adminKey = params.adminKey;
-  if (!adminKey) {
-    return { success: false, message: '管理金鑰錯誤，請重新輸入。', data: null };
-  }
-  
-  const keyHash = hashString(adminKey);
-  const admins = getSheetData('管理員設定');
-  
-  const admin = admins.find(a => a.admin_key_hash === keyHash && a.status === 'active');
-  
-  if (admin) {
-    // 更新最後登入時間
-    updateRowData('管理員設定', { admin_id: admin.admin_id }, { last_login_at: new Date().toISOString() });
-    
-    // 記錄登入操作
-    logAction(admin.admin_id, '', '管理員', admin.admin_id, '登入', '系統', '', '管理員登入成功');
-    
-    return {
-      success: true,
-      message: '登入成功',
-      data: {
-        admin_id: admin.admin_id,
-        admin_name: admin.admin_name
-      }
-    };
-  } else {
-    // 依據需求書：登入錯誤時統一顯示「管理金鑰錯誤，請重新輸入。」
-    return { success: false, message: '管理金鑰錯誤，請重新輸入。', data: null };
+    console.error(error && error.stack ? error.stack : error);
+    return json_({ ok: false, error: normalizeError_(error) });
   }
 }
 
-function apiAdminGetProjects(params) {
-  const adminId = params.adminId;
-  if (!adminId) {
-    return { success: false, message: '未授權的請求', data: null };
+var API_ROUTES_ = {
+  adminLogin: adminLogin_, adminLogout: adminLogout_, adminProjects: adminProjects_,
+  adminCreateProject: adminCreateProject_, adminUpdateProject: adminUpdateProject_,
+  adminCloneProject: adminCloneProject_, adminArchiveProject: adminArchiveProject_,
+  adminDeleteProject: adminDeleteProject_, adminProject: adminProject_,
+  adminSaveSchema: adminSaveSchema_, adminSaveUserFields: adminSaveUserFields_,
+  adminImportUsers: adminImportUsers_, adminSaveLinkedOptions: adminSaveLinkedOptions_,
+  adminUsers: adminUsers_, adminResponses: adminResponses_, adminUpdateResponse: adminUpdateResponse_,
+  adminStats: adminStats_, adminLogs: adminLogs_, adminAttachments: adminAttachments_,
+  adminDeleteAttachment: adminDeleteAttachment_, adminExport: adminExport_, adminSetFrontendUrl: adminSetFrontendUrl_,
+  respondentProject: respondentProject_, respondentLogin: respondentLogin_, respondentLogout: respondentLogout_,
+  respondentSurvey: respondentSurvey_, respondentSave: respondentSave_, respondentSubmit: respondentSubmit_,
+  respondentUpload: respondentUpload_, respondentDeleteAttachment: respondentDeleteAttachment_,
+  attachment: attachmentDownload_
+};
+
+function parseRequest_(e, method) {
+  if (method === 'POST') {
+    var raw = e && e.postData && e.postData.contents;
+    if (!raw) throw apiError_('BAD_REQUEST', '請求內容不可空白。');
+    try { return JSON.parse(raw); } catch (_) { throw apiError_('BAD_REQUEST', 'JSON 格式錯誤。'); }
   }
-  
-  const projects = getSheetData('專案索引');
-  const myProjects = projects.filter(p => p.admin_id === adminId);
-  
-  return {
-    success: true,
-    message: '取得專案列表成功',
-    data: myProjects
-  };
+  return e && e.parameter ? e.parameter : {};
 }
+
+function json_(payload) {
+  return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function apiError_(code, message, details) { var e = new Error(message); e.code = code; e.details = details || null; return e; }
+function normalizeError_(e) { return { code: e.code || 'INTERNAL', message: e.code ? e.message : '系統暫時無法處理，請稍後再試。', details: e.details || null }; }

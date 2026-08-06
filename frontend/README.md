@@ -1,16 +1,29 @@
-# React + Vite
+# 問卷調查管理系統前端
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + Vite 靜態前端，部署至 GitHub Pages；資料與權限由 Google Apps Script API 處理。
 
-Currently, two official plugins are available:
+## 本機開發
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+1. 在 `.env` 設定 `VITE_GAS_API_URL`。
+2. 執行 `npm install`。
+3. 執行 `npm run dev`。
 
-## React Compiler
+## 建置與檢查
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm run lint
+npm run build
+```
 
-## Expanding the Oxlint configuration
+GitHub Actions 會在 `master` 或 `main` 更新時建置 `frontend/dist` 並部署 GitHub Pages。
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## 後端部署
+
+後端已由 `backend/.clasp.json` 綁定既有 Apps Script 專案。更新時在 `backend` 執行：
+
+```bash
+clasp push
+clasp deploy --description "版本說明"
+```
+
+首次全新安裝才需要在 Apps Script 編輯器執行 `initializeSystem()`；既有安裝不需重新授權。
