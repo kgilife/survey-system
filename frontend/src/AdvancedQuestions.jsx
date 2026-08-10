@@ -249,18 +249,21 @@ function Stars({ q, value, onChange, disabled }) {
 }
 function Cascading({ q, value, onChange, disabled }) {
   const selected = Array.isArray(value) ? value : [],
-    paths = q.options.map((o) =>
+    paths = (q.options || []).map((o) =>
       String(o.label || o.value)
         .split("/")
         .map((x) => x.trim()),
     ),
-    levels = Math.max(1, ...paths.map((x) => x.length));
+    headers = paths[0] || [],
+    dataPaths = paths.slice(1),
+    levels = Math.max(1, ...dataPaths.map((x) => x.length));
+  
   return (
-    <div className="row">
+    <div className="row cascading-row">
       {Array.from({ length: levels }, (_, level) => {
         const choices = [
           ...new Set(
-            paths
+            dataPaths
               .filter((p) =>
                 p.slice(0, level).every((x, i) => x === selected[i]),
               )
@@ -269,20 +272,22 @@ function Cascading({ q, value, onChange, disabled }) {
           ),
         ];
         return (
-          <select
-            key={level}
-            className="input"
-            disabled={disabled || (level > 0 && !selected[level - 1])}
-            value={selected[level] || ""}
-            onChange={(e) =>
-              onChange([...selected.slice(0, level), e.target.value])
-            }
-          >
-            <option value="">請選擇</option>
-            {choices.map((x) => (
-              <option key={x}>{x}</option>
-            ))}
-          </select>
+          <div key={level} className="stack" style={{ flex: 1 }}>
+            {headers[level] && <strong>{headers[level]}</strong>}
+            <select
+              className="input"
+              disabled={disabled || (level > 0 && !selected[level - 1])}
+              value={selected[level] || ""}
+              onChange={(e) =>
+                onChange([...selected.slice(0, level), e.target.value])
+              }
+            >
+              <option value="">請選擇</option>
+              {choices.map((x) => (
+                <option key={x} value={x}>{x}</option>
+              ))}
+            </select>
+          </div>
         );
       })}
     </div>

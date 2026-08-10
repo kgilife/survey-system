@@ -714,6 +714,7 @@ function Builder({ admin, projectId, data, setData, setError }) {
   const [saveStatus, setSaveStatus] = useState("");
   const [dragging, setDragging] = useState(null);
   const [notice, setNotice] = useState("");
+  const [collapsedSections, setCollapsedSections] = useState({});
   const savedHashRef = useRef(JSON.stringify(schema));
   const savingRef = useRef(false), queuedSaveRef = useRef(null);
   const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -793,9 +794,6 @@ function Builder({ admin, projectId, data, setData, setError }) {
           <button className="btn secondary" onClick={addSection}>
             ＋ 區段
           </button>
-          <button className="btn secondary" onClick={addQuestion}>
-            ＋ 題目
-          </button>
         </div>
       </div>
       {notice && <div className="alert success row spread"><span>{notice}</span><button className="btn ghost" onClick={undo}>復原</button></div>}
@@ -811,6 +809,13 @@ function Builder({ admin, projectId, data, setData, setError }) {
               value={s.title}
               onChange={(e) => commit((current) => ({ ...current, sections: current.sections.map((x) => x.id === s.id ? { ...x, title: e.target.value } : x) }), `section:${s.id}:title`)}
             />
+            <div className="row" style={{ gap: 5 }}>
+              <button className="btn ghost" disabled={i === 0} onClick={() => moveSection(s.id, schema.sections[i - 1].id)}>↑ 上移</button>
+              <button className="btn ghost" disabled={i === schema.sections.length - 1} onClick={() => moveSection(s.id, schema.sections[i + 2] ? schema.sections[i + 2].id : null)}>↓ 下移</button>
+              <button className="btn ghost" onClick={() => setCollapsedSections(c => ({...c, [s.id]: !c[s.id]}))}>
+                {collapsedSections[s.id] ? "展開所有題目" : "收縮所有題目"}
+              </button>
+            </div>
             {schema.sections.length > 1 && (
               <button className="btn danger" onClick={() => {
                 const count = schemaRef.current.questions.filter((q) => q.sectionId === s.id).length;
@@ -822,7 +827,7 @@ function Builder({ admin, projectId, data, setData, setError }) {
               </button>
             )}
           </div>
-          <div className="section-items stack">
+          <div className="section-items stack" style={{ display: collapsedSections[s.id] ? "none" : "flex" }}>
             {schema.questions.filter((q) => q.sectionId === s.id).map((q, localIndex, sectionQuestions) => (
               <div key={q.id} className={`question-drop ${dragging?.id === q.id ? "dragging" : ""}`} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (dragging?.type === "question") moveQuestion(dragging.id, s.id, q.id); setDragging(null); }}>
                 <QuestionEditor q={q} sections={schema.sections} ctx={{ admin, projectId, data, setError }}
@@ -836,11 +841,13 @@ function Builder({ admin, projectId, data, setData, setError }) {
             ))}
             {!schema.questions.some((q) => q.sectionId === s.id) && <div className="empty-section">將題目拖曳到這裡，或使用下方按鈕新增</div>}
           </div>
-          <div className="row section-actions">
-            <button className="btn secondary" onClick={() => addQuestion(s.id)}>＋ 題目</button>
-            <button className="btn ghost" onClick={() => addQuestion(s.id, "heading", "新標題")}>＋ 標題與說明</button>
-            <button className="btn ghost" onClick={() => addQuestion(s.id, "image_note", "新圖片說明")}>＋ 圖片說明</button>
-          </div>
+          {!collapsedSections[s.id] && (
+            <div className="row section-actions">
+              <button className="btn secondary" onClick={() => addQuestion(s.id)}>＋ 題目</button>
+              <button className="btn ghost" onClick={() => addQuestion(s.id, "heading", "新標題")}>＋ 標題與說明</button>
+              <button className="btn ghost" onClick={() => addQuestion(s.id, "image_note", "新圖片說明")}>＋ 圖片說明</button>
+            </div>
+          )}
         </section>
       ))}
     </div>
@@ -876,6 +883,7 @@ function QuestionEditor({
     "single",
     "checkbox",
     "dropdown",
+    "scale",
     "radio_grid",
     "checkbox_grid",
     ...ADVANCED_OPTION_TYPES.filter((type) => type !== "cascading"),
@@ -2149,18 +2157,33 @@ function Question({
         ))}
       </div>
     );
-  } else if (q.type === "scale")
+  } else if (q.type === "scale") {
+    const min = q.config?.min || 1;
+    let max = q.config?.max || 5;
+    const opts = q.options || [];
+    if (opts.length > 0) {
+      max = Math.max(min, min + opts.length - 1);
+    }
     input = (
-      <input
-        type="range"
-        min={q.config?.min || 1}
-        max={q.config?.max || 5}
-        disabled={disabled}
-        value={value || q.config?.min || 1}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      <div className="stack">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          disabled={disabled}
+          value={value || min}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        {opts.length > 0 && (
+          <div className="row spread" style={{ fontSize: '0.85em', color: '#666', marginTop: 5 }}>
+            {opts.map((o, i) => (
+              <span key={i} style={{ textAlign: 'center', flex: 1 }}>{o.label || o.value}</span>
+            ))}
+          </div>
+        )}
+      </div>
     );
-  else if (["radio_grid", "checkbox_grid"].includes(q.type)) {
+  } else if (["radio_grid", "checkbox_grid"].includes(q.type)) {
     const cols = q.config?.cols || [],
       isRadio = q.type === "radio_grid",
       vals = typeof value === "object" && value !== null ? value : {};
@@ -2324,6 +2347,7 @@ function Signature({
     try {
       const base64 = ref.current.toDataURL("image/png").split(",")[1], r = await uploadFn({ type: "image/png", base64 }, questionId, "signature");
       onChange(r.data);
+      alert("簽名上傳成功！請記得點擊「暫存」或「送出」來儲存整份問卷。");
     } catch (error) { alert(error.message); }
     finally { setUploading(false); }
   }
