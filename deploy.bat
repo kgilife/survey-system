@@ -1,4 +1,5 @@
 @echo off
+set "GITHUB_TOKEN="
 echo Pushing latest code to GitHub...
 git add .
 git commit -m "Auto deploy"
