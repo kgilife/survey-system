@@ -26,6 +26,7 @@ var API_ROUTES_ = {
   adminUsers: adminUsers_, adminResponses: adminResponses_, adminUpdateResponse: adminUpdateResponse_,
   adminStats: adminStats_, adminLogs: adminLogs_, adminAttachments: adminAttachments_,
   adminDeleteAttachment: adminDeleteAttachment_, adminExport: adminExport_, adminSetFrontendUrl: adminSetFrontendUrl_,
+  adminUpload: adminUpload_,
   respondentProject: respondentProject_, respondentLogin: respondentLogin_, respondentLogout: respondentLogout_,
   respondentSurvey: respondentSurvey_, respondentSave: respondentSave_, respondentSubmit: respondentSubmit_,
   respondentUpload: respondentUpload_, respondentDeleteAttachment: respondentDeleteAttachment_,

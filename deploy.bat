@@ -1,0 +1,9 @@
+@echo off
+echo Starting deployment for Survey System...
+cd frontend
+echo Running npm run build...
+call npx pnpm run build
+echo Running npm run deploy...
+call npx pnpm run deploy
+echo Deployment completed successfully!
+pause
