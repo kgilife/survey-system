@@ -7,12 +7,27 @@ function initializeSystem() {
     var masterId=props.getProperty('MASTER_SPREADSHEET_ID'); var ss;
     if(masterId){ try{ss=SpreadsheetApp.openById(masterId);}catch(_){ss=null;} }
     if(!ss){ ss=SpreadsheetApp.create('問卷系統主資料庫'); DriveApp.getFileById(ss.getId()).moveTo(root); props.setProperty('MASTER_SPREADSHEET_ID',ss.getId()); }
-    removeDeprecatedAdminColumns_(ss); ensureSheets_(ss,MASTER_SHEETS_);
+    removeDeprecatedAdminColumns_(ss); ensureSheets_(ss,MASTER_SHEETS_); props.setProperty('SCHEMA_VERSION','2');
     var adminSheet=ss.getSheetByName('管理員設定'),admins=rows_(adminSheet),legacy=admins.find(function(a){return a.email==='kgi';});
     if(!legacy){ var folder=root.createFolder('管理員_kgi'); append_(adminSheet,{admin_id:Utilities.getUuid(),admin_name:'kgi',admin_folder_id:folder.getId(),status:'active',created_at:now_(),last_login_at:'',email:'kgi',password:'03434016',role:'system_admin',email_verified:true,updated_at:now_()}); }
     else updateWhere_(adminSheet,function(a){return a.admin_id===legacy.admin_id;},{admin_name:'kgi',email:'kgi',password:'03434016',role:'system_admin',email_verified:true,status:'active',updated_at:now_()});
     putSettings_(ss.getSheetByName('系統設定'),{system_name:'問卷調查管理系統',default_completion_message:'您的問卷已成功送出。'});
     return {ok:true,rootFolderId:root.getId(),masterSpreadsheetId:ss.getId()};
+  });
+}
+
+/** 部署後需要調整資料表結構時手動執行一次；日常 API 不做結構掃描。 */
+function migrateSystem() {
+  return withLock_(function() {
+    var props=PropertiesService.getScriptProperties(),ss=master_();
+    removeDeprecatedAdminColumns_(ss); ensureSheets_(ss,MASTER_SHEETS_);
+    var projects=rows_(ss.getSheetByName('專案索引')),migrated=0,errors=[];
+    projects.forEach(function(p){
+      try { ensureSheets_(SpreadsheetApp.openById(p.spreadsheet_id),PROJECT_SHEETS_); migrated++; }
+      catch(error) { errors.push({projectId:p.project_id,message:String(error&&error.message||error)}); }
+    });
+    if(!errors.length)props.setProperty('SCHEMA_VERSION','2');
+    return {ok:!errors.length,data:{version:errors.length?props.getProperty('SCHEMA_VERSION')||'1':'2',migratedProjects:migrated,errors:errors}};
   });
 }
 

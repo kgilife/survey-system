@@ -709,187 +709,139 @@ function parsePaste(text, fields) {
 
 function Builder({ admin, projectId, data, setData, setError }) {
   const [schema, setSchema] = useState(data.schema);
-  const addSection = () =>
-    setSchema({
-      ...schema,
-      sections: [
-        ...schema.sections,
-        {
-          id: "S" + crypto.randomUUID().slice(0, 6),
-          title: "新區段",
-          description: "",
-          order: schema.sections.length + 1,
-        },
-      ],
-    });
-  const addQuestion = () =>
-    setSchema({
-      ...schema,
-      questions: [
-        ...schema.questions,
-        {
-          id: "Q" + crypto.randomUUID().slice(0, 8),
-          sectionId: schema.sections[0]?.id,
-          type: "short",
-          title: "新題目",
-          description: "",
-          required: false,
-          options: [],
-          validation: {},
-          config: {},
-        },
-      ],
-    });
-  const addHeading = () =>
-    setSchema({
-      ...schema,
-      questions: [
-        ...schema.questions,
-        {
-          id: "Q" + crypto.randomUUID().slice(0, 8),
-          sectionId: schema.sections[0]?.id,
-          type: "heading",
-          title: "新標題",
-          description: "",
-          required: false,
-        },
-      ],
-    });
-  const addImageNote = () =>
-    setSchema({
-      ...schema,
-      questions: [
-        ...schema.questions,
-        {
-          id: "Q" + crypto.randomUUID().slice(0, 8),
-          sectionId: schema.sections[0]?.id,
-          type: "image_note",
-          title: "新圖片說明",
-          description: "",
-          required: false,
-        },
-      ],
-    });
-  const update = (i, v) =>
-    setSchema({
-      ...schema,
-      questions: schema.questions.map((q, j) => (j === i ? v : q)),
-    });
-  const [saveStatus, setSaveStatus] = useState(""),
-    initialRef = useRef(schema);
-  useEffect(() => {
-    if (JSON.stringify(initialRef.current) === JSON.stringify(schema)) return;
-    setSaveStatus("儲存中...");
-    const t = setTimeout(async () => {
+  const schemaRef = useRef(schema), pastRef = useRef([]), futureRef = useRef([]), coalesceRef = useRef({ key: "", time: 0 });
+  const [historyState, setHistoryState] = useState({ undo: false, redo: false });
+  const [saveStatus, setSaveStatus] = useState("");
+  const [dragging, setDragging] = useState(null);
+  const [notice, setNotice] = useState("");
+  const savedHashRef = useRef(JSON.stringify(schema));
+  const savingRef = useRef(false), queuedSaveRef = useRef(null);
+  const clone = (value) => JSON.parse(JSON.stringify(value));
+  const refreshHistory = () => setHistoryState({ undo: pastRef.current.length > 0, redo: futureRef.current.length > 0 });
+  const commit = (updater, coalesceKey = "") => {
+    const current = schemaRef.current, next = typeof updater === "function" ? updater(current) : updater;
+    if (JSON.stringify(current) === JSON.stringify(next)) return;
+    const now = Date.now(), sameTypingGroup = coalesceKey && coalesceRef.current.key === coalesceKey && now - coalesceRef.current.time < 800;
+    if (!sameTypingGroup) pastRef.current.push(clone(current));
+    if (pastRef.current.length > 100) pastRef.current.shift();
+    coalesceRef.current = { key: coalesceKey, time: now };
+    futureRef.current = [];
+    schemaRef.current = next;
+    setSchema(next);
+    refreshHistory();
+  };
+  const undo = () => {
+    const previous = pastRef.current.pop(); if (!previous) return;
+    futureRef.current.push(clone(schemaRef.current)); schemaRef.current = previous; setSchema(previous); coalesceRef.current = { key: "", time: 0 }; refreshHistory(); setNotice("已復原上一個動作");
+  };
+  const redo = () => {
+    const next = futureRef.current.pop(); if (!next) return;
+    pastRef.current.push(clone(schemaRef.current)); schemaRef.current = next; setSchema(next); coalesceRef.current = { key: "", time: 0 }; refreshHistory(); setNotice("已重做下一個動作");
+  };
+  const newQuestion = (sectionId, type = "short", title = "新題目") => ({ id: "Q" + crypto.randomUUID().slice(0, 8), sectionId, type, title, description: "", required: false, options: [], validation: {}, config: {} });
+  const addSection = () => commit((current) => ({ ...current, sections: [...current.sections, { id: "S" + crypto.randomUUID().slice(0, 6), title: "新區段", description: "", order: current.sections.length + 1 }] }));
+  const addQuestion = (sectionId = schemaRef.current.sections[0]?.id, type = "short", title = "新題目") => commit((current) => ({ ...current, questions: [...current.questions, newQuestion(sectionId, type, title)] }));
+  const moveQuestion = (questionId, sectionId, beforeId = null) => commit((current) => {
+    const moving = current.questions.find((q) => q.id === questionId); if (!moving) return current;
+    const groups = Object.fromEntries(current.sections.map((s) => [s.id, current.questions.filter((q) => q.sectionId === s.id && q.id !== questionId)]));
+    const target = groups[sectionId] || (groups[sectionId] = []), index = beforeId ? target.findIndex((q) => q.id === beforeId) : -1;
+    target.splice(index < 0 ? target.length : index, 0, { ...moving, sectionId });
+    return { ...current, questions: current.sections.flatMap((s) => groups[s.id] || []) };
+  });
+  const moveSection = (sectionId, beforeId = null) => commit((current) => {
+    const moving = current.sections.find((s) => s.id === sectionId); if (!moving || sectionId === beforeId) return current;
+    const sections = current.sections.filter((s) => s.id !== sectionId), index = beforeId ? sections.findIndex((s) => s.id === beforeId) : -1;
+    sections.splice(index < 0 ? sections.length : index, 0, moving);
+    return { ...current, sections: sections.map((s, i) => ({ ...s, order: i + 1 })), questions: sections.flatMap((s) => current.questions.filter((q) => q.sectionId === s.id)) };
+  });
+  const persistQueued = async () => {
+    if (savingRef.current) return; savingRef.current = true;
+    while (queuedSaveRef.current) {
+      const snapshot = queuedSaveRef.current; queuedSaveRef.current = null; setSaveStatus("儲存中...");
       try {
-        const r = await api.adminSaveSchema({
-          token: admin.token,
-          projectId,
-          schema,
-        });
-        setData({ ...data, schema: r.data });
-        initialRef.current = r.data;
-        setSaveStatus("已自動儲存");
-      } catch (x) {
-        setError(x);
-        setSaveStatus("儲存失敗");
-      }
-    }, 1000);
+        const r = await api.adminSaveSchema({ token: admin.token, projectId, schema: snapshot });
+        savedHashRef.current = JSON.stringify(snapshot);
+        setData((current) => ({ ...current, schema: r.data }));
+        setSaveStatus(queuedSaveRef.current ? "儲存中..." : "已自動儲存");
+      } catch (x) { setError(x); setSaveStatus("儲存失敗"); queuedSaveRef.current = null; }
+    }
+    savingRef.current = false;
+  };
+  useEffect(() => {
+    if (savedHashRef.current === JSON.stringify(schema)) return;
+    setSaveStatus("等待儲存...");
+    const t = setTimeout(() => { queuedSaveRef.current = clone(schema); persistQueued(); }, 900);
     return () => clearTimeout(t);
-  }, [schema, admin.token, projectId, data, setData, setError]);
+  }, [schema]);
+  useEffect(() => {
+    const onKey = (event) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      if (event.key.toLowerCase() === "z") { event.preventDefault(); if (event.shiftKey) redo(); else undo(); }
+      else if (event.key.toLowerCase() === "y") { event.preventDefault(); redo(); }
+    };
+    window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(""), 3500); return () => clearTimeout(t); }, [notice]);
   return (
     <div className="stack">
-      <div className="row spread">
+      <div className="row spread builder-toolbar">
         <h2>問卷設計器</h2>
         <div className="row">
           <span className="muted">{saveStatus}</span>
+          <button className="btn secondary" disabled={!historyState.undo} onClick={undo} title="上一步（Ctrl/⌘ + Z）">↶ 上一步</button>
+          <button className="btn secondary" disabled={!historyState.redo} onClick={redo} title="下一步（Ctrl + Y／⌘ + Shift + Z）">↷ 下一步</button>
           <button className="btn secondary" onClick={addSection}>
             ＋ 區段
-          </button>
-          <button className="btn secondary" onClick={addHeading}>
-            ＋ 標題與說明
-          </button>
-          <button className="btn secondary" onClick={addImageNote}>
-            ＋ 圖片說明
           </button>
           <button className="btn secondary" onClick={addQuestion}>
             ＋ 題目
           </button>
         </div>
       </div>
+      {notice && <div className="alert success row spread"><span>{notice}</span><button className="btn ghost" onClick={undo}>復原</button></div>}
       {schema.sections.map((s, i) => (
-        <div className="question" key={s.id}>
-          <div className="row">
+        <section className={`builder-section stack ${dragging?.id === s.id ? "dragging" : ""}`} key={s.id}
+          onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (dragging?.type === "section") moveSection(dragging.id, s.id); else if (dragging?.type === "question") moveQuestion(dragging.id, s.id); setDragging(null); }}>
+          <div className="row section-heading">
+            <button className="drag-grip" draggable onDragStart={(e) => { e.stopPropagation(); setDragging({ type: "section", id: s.id }); e.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => setDragging(null)} aria-label={`拖曳區段 ${i + 1}`} title="拖曳移動整個區段">⠿</button>
             <strong>區段 {i + 1}</strong>
             <input
               className="input"
               style={{ flex: 1 }}
               value={s.title}
-              onChange={(e) =>
-                setSchema({
-                  ...schema,
-                  sections: schema.sections.map((x) =>
-                    x.id === s.id ? { ...x, title: e.target.value } : x,
-                  ),
-                })
-              }
+              onChange={(e) => commit((current) => ({ ...current, sections: current.sections.map((x) => x.id === s.id ? { ...x, title: e.target.value } : x) }), `section:${s.id}:title`)}
             />
             {schema.sections.length > 1 && (
-              <button
-                className="btn danger"
-                onClick={() =>
-                  setSchema({
-                    ...schema,
-                    sections: schema.sections.filter((x) => x.id !== s.id),
-                    questions: schema.questions.map((q) =>
-                      q.sectionId === s.id
-                        ? { ...q, sectionId: schema.sections[0].id }
-                        : q,
-                    ),
-                  })
-                }
-              >
+              <button className="btn danger" onClick={() => {
+                const count = schemaRef.current.questions.filter((q) => q.sectionId === s.id).length;
+                if (!confirm(`確定刪除「${s.title}」？${count ? `\n其中 ${count} 個項目會移到前一個可用區段，刪除後可按「上一步」復原。` : ""}`)) return;
+                commit((current) => { const sections = current.sections.filter((x) => x.id !== s.id), target = sections[Math.max(0, i - 1)].id; return { ...current, sections: sections.map((x, index) => ({ ...x, order: index + 1 })), questions: current.questions.map((q) => q.sectionId === s.id ? { ...q, sectionId: target } : q) }; });
+                setNotice(`已刪除「${s.title}」${count ? `，並移動 ${count} 個項目` : ""}`);
+              }}>
                 刪除區段
               </button>
             )}
           </div>
-        </div>
-      ))}
-      {schema.questions.map((q, i) => (
-        <QuestionEditor
-          key={q.id}
-          q={q}
-          sections={schema.sections}
-          ctx={{ admin, projectId, data, setError }}
-          onChange={(v) => update(i, v)}
-          onMove={(d) => {
-            const to = i + d;
-            if (to < 0 || to >= schema.questions.length) return;
-            const arr = [...schema.questions];
-            [arr[i], arr[to]] = [arr[to], arr[i]];
-            setSchema({ ...schema, questions: arr });
-          }}
-          onCopy={() =>
-            setSchema({
-              ...schema,
-              questions: [
-                ...schema.questions.slice(0, i + 1),
-                {
-                  ...q,
-                  id: "Q" + crypto.randomUUID().slice(0, 8),
-                  title: q.title + "（複製）",
-                },
-                ...schema.questions.slice(i + 1),
-              ],
-            })
-          }
-          onDelete={() =>
-            setSchema({
-              ...schema,
-              questions: schema.questions.filter((_, j) => j !== i),
-            })
-          }
-        />
+          <div className="section-items stack">
+            {schema.questions.filter((q) => q.sectionId === s.id).map((q, localIndex, sectionQuestions) => (
+              <div key={q.id} className={`question-drop ${dragging?.id === q.id ? "dragging" : ""}`} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (dragging?.type === "question") moveQuestion(dragging.id, s.id, q.id); setDragging(null); }}>
+                <QuestionEditor q={q} sections={schema.sections} ctx={{ admin, projectId, data, setError }}
+                  dragHandle={<button className="drag-grip" draggable onDragStart={(e) => { setDragging({ type: "question", id: q.id }); e.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => setDragging(null)} aria-label={`拖曳題目 ${q.title}`} title="拖曳排序或移到其他區段">⠿</button>}
+                  onChange={(v, key = "") => commit((current) => ({ ...current, questions: current.questions.map((x) => x.id === q.id ? v : x) }), key ? `question:${q.id}:${key}` : "")}
+                  onSectionChange={(sectionId) => moveQuestion(q.id, sectionId)}
+                  onMove={(d) => { const target = sectionQuestions[localIndex + d]; if (target) moveQuestion(q.id, s.id, d < 0 ? target.id : sectionQuestions[localIndex + d + 1]?.id || null); }}
+                  onCopy={() => commit((current) => { const index = current.questions.findIndex((x) => x.id === q.id), questions = [...current.questions]; questions.splice(index + 1, 0, { ...clone(q), id: "Q" + crypto.randomUUID().slice(0, 8), title: q.title + "（複製）" }); return { ...current, questions }; })}
+                  onDelete={() => { commit((current) => ({ ...current, questions: current.questions.filter((x) => x.id !== q.id) })); setNotice(`已刪除「${q.title}」`); }} />
+              </div>
+            ))}
+            {!schema.questions.some((q) => q.sectionId === s.id) && <div className="empty-section">將題目拖曳到這裡，或使用下方按鈕新增</div>}
+          </div>
+          <div className="row section-actions">
+            <button className="btn secondary" onClick={() => addQuestion(s.id)}>＋ 題目</button>
+            <button className="btn ghost" onClick={() => addQuestion(s.id, "heading", "新標題")}>＋ 標題與說明</button>
+            <button className="btn ghost" onClick={() => addQuestion(s.id, "image_note", "新圖片說明")}>＋ 圖片說明</button>
+          </div>
+        </section>
       ))}
     </div>
   );
@@ -898,10 +850,12 @@ function QuestionEditor({
   q,
   sections,
   onChange,
+  onSectionChange,
   onMove,
   onCopy,
   onDelete,
   ctx,
+  dragHandle,
 }) {
   const [showLinked, setShowLinked] = useState(false);
   const [uploadState, setUploadState] = useState("");
@@ -931,11 +885,12 @@ function QuestionEditor({
   return (
     <div className="question stack">
       <div className="row">
+        {dragHandle}
         <input
           className="input"
           style={{ flex: 2 }}
           value={q.title}
-          onChange={(e) => onChange({ ...q, title: e.target.value })}
+          onChange={(e) => onChange({ ...q, title: e.target.value }, "title")}
         />
         {["heading", "image_note"].includes(q.type) ? (
           <div style={{ flex: 1, padding: "0 10px", color: "#666" }}>
@@ -959,7 +914,7 @@ function QuestionEditor({
           className="input"
           style={{ flex: 1 }}
           value={q.sectionId}
-          onChange={(e) => onChange({ ...q, sectionId: e.target.value })}
+          onChange={(e) => onSectionChange(e.target.value)}
         >
           {sections.map((s) => (
             <option value={s.id} key={s.id}>
@@ -972,7 +927,7 @@ function QuestionEditor({
         className="input"
         placeholder="題目說明"
         value={q.description || ""}
-        onChange={(e) => onChange({ ...q, description: e.target.value })}
+        onChange={(e) => onChange({ ...q, description: e.target.value }, "description")}
       />
       {["short", "linked_short"].includes(q.type) && (
         <select

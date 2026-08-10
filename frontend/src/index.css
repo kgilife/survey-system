@@ -164,6 +164,51 @@ textarea.input {
   opacity: 0.5;
   cursor: not-allowed;
 }
+.builder-toolbar {
+  position: sticky;
+  top: 74px;
+  z-index: 8;
+  padding: 12px 0;
+  background: rgba(248, 250, 252, 0.96);
+  backdrop-filter: blur(8px);
+}
+.builder-section {
+  border: 1px solid #cbd8e5;
+  border-left: 6px solid var(--brand);
+  border-radius: 16px;
+  padding: 16px;
+  background: #f5f8fb;
+}
+.section-heading {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #dce5ee;
+}
+.section-items { min-height: 72px; }
+.section-items .question { background: #fff; }
+.section-actions { padding-top: 4px; }
+.drag-grip {
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font-size: 25px;
+  line-height: 1;
+  padding: 6px;
+  cursor: grab;
+  touch-action: none;
+}
+.drag-grip:active { cursor: grabbing; }
+.question-drop { border-radius: 12px; }
+.question-drop:has(.drag-grip:hover) { outline: 1px dashed #8eacbe; }
+.dragging { opacity: 0.45; }
+.empty-section {
+  min-height: 72px;
+  display: grid;
+  place-items: center;
+  border: 2px dashed #b8c8d6;
+  border-radius: 12px;
+  color: var(--muted);
+  background: rgba(255,255,255,.55);
+}
 .alert {
   padding: 12px 14px;
   border-radius: 10px;

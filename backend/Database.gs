@@ -69,21 +69,28 @@ function replaceAll_(sheet, records) {
 
 function updateWhere_(sheet, predicate, changes) {
   var values = sheet.getDataRange().getValues(); if (values.length < 2) return false;
-  var headers = values[0].map(String); var changed = false;
+  var headers = values[0].map(String),matched=[];
   for (var r=1; r<values.length; r++) {
     var item={}; headers.forEach(function(h,i){ item[h]=cleanCell_(values[r][i]); });
-    if (predicate(item)) { Object.keys(changes).forEach(function(k){ var c=headers.indexOf(k); if(c>=0) values[r][c]=changes[k]; }); changed=true; }
+    if (predicate(item)) matched.push(r+1);
   }
-  if (changed) sheet.getRange(1,1,values.length,headers.length).setValues(values); return changed;
+  if (!matched.length) return false;
+  Object.keys(changes).forEach(function(k){
+    var c=headers.indexOf(k); if(c<0)return;
+    sheet.getRangeList(matched.map(function(row){return columnName_(c+1)+row;})).setValue(changes[k]);
+  });
+  return true;
 }
+
+function columnName_(column){var name='';while(column>0){var remainder=(column-1)%26;name=String.fromCharCode(65+remainder)+name;column=Math.floor((column-1)/26);}return name;}
 
 function deleteWhere_(sheet, predicate) {
   var data = rows_(sheet), kept = data.filter(function(x){ return !predicate(x); }); var count=data.length-kept.length; replaceAll_(sheet,kept); return count;
 }
 
-function master_() { var id=PropertiesService.getScriptProperties().getProperty('MASTER_SPREADSHEET_ID'); if(!id) throw apiError_('NOT_INITIALIZED','系統尚未初始化。'); var ss=SpreadsheetApp.openById(id);removeDeprecatedAdminColumns_(ss);ensureSheets_(ss,MASTER_SHEETS_);return ss; }
+function master_() { var id=PropertiesService.getScriptProperties().getProperty('MASTER_SPREADSHEET_ID'); if(!id) throw apiError_('NOT_INITIALIZED','系統尚未初始化。'); return SpreadsheetApp.openById(id); }
 function projectById_(id) { var p=rows_(master_().getSheetByName('專案索引')).find(function(x){ return String(x.project_id)===String(id); }); if(!p) throw apiError_('NOT_FOUND','找不到此專案。'); return p; }
-function projectDb_(project) { var ss=SpreadsheetApp.openById((project.spreadsheet_id || project));ensureSheets_(ss,PROJECT_SHEETS_);return ss; }
+function projectDb_(project) { return SpreadsheetApp.openById((project.spreadsheet_id || project)); }
 function settingMap_(sheet) { var out={}; rows_(sheet).forEach(function(x){ out[x.key]=parseJson_(x.value,x.value); }); return out; }
 function parseJson_(value, fallback) { if(typeof value!=='string') return value; try{return JSON.parse(value);}catch(_){return fallback;} }
 function putSettings_(sheet, values) { var current=rows_(sheet); Object.keys(values).forEach(function(k){ var found=current.find(function(x){return x.key===k;}); var val=typeof values[k]==='string'?values[k]:JSON.stringify(values[k]); if(found) updateWhere_(sheet,function(x){return x.key===k;},{value:val,updated_at:now_()}); else append_(sheet,{key:k,value:val,updated_at:now_()}); }); }
