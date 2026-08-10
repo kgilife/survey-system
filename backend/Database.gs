@@ -36,8 +36,11 @@ function ensureSheets_(ss, definitions) {
 }
 
 function rows_(sheet) {
-  if (!sheet || sheet.getLastRow() < 2) return [];
-  var values = sheet.getDataRange().getValues(); var headers = values.shift().map(String);
+  if (!sheet) return [];
+  // Avoid a separate getLastRow() RPC; Spreadsheet calls dominate GAS latency.
+  var values = sheet.getDataRange().getValues();
+  if (values.length < 2) return [];
+  var headers = values.shift().map(String);
   return values.filter(function(row) { return row.some(function(v) { return v !== ''; }); }).map(function(row) {
     var item = {}; headers.forEach(function(h, i) { item[h] = cleanCell_(row[i]); }); return item;
   });
