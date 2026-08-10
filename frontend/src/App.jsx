@@ -58,6 +58,10 @@ const go = (path) => {
   location.hash = path;
 };
 const fmt = (v) => (v ? new Date(v).toLocaleString("zh-TW") : "—");
+const imageUrl = (url = "") => {
+  const match = String(url).match(/[?&]id=([\w-]+)/);
+  return match && String(url).includes("drive.google.com/uc") ? `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1600` : url;
+};
 function usePath() {
   const read = () => {
     if (location.hash.startsWith("#/")) return location.hash.slice(1);
@@ -130,20 +134,8 @@ export default function App() {
   if (path === "/profile") return <ProfilePage Header={Header} />;
   if (project) return <ProjectEditor projectId={project[1]} />;
   if (path.startsWith("/admin")) return <Dashboard />;
-  return (
-    <div className="shell">
-      <Header />
-      <main className="narrow card stack">
-        <h1 className="title">問卷調查管理系統</h1>
-        <p className="muted">
-          請使用收到的專案專屬網址填寫問卷，或登入建立與管理問卷。
-        </p>
-        <button className="btn primary" onClick={() => go("/admin/login")}>
-          登入／註冊
-        </button>
-      </main>
-    </div>
-  );
+  go("/admin/login");
+  return null;
 }
 
 function useAdmin() {
@@ -912,11 +904,19 @@ function QuestionEditor({
   ctx,
 }) {
   const [showLinked, setShowLinked] = useState(false);
+  const [uploadState, setUploadState] = useState("");
   const uploadQuestionImage = async (file) => {
     if (!file) return "";
-    const base64 = await new Promise((resolve, reject) => { const reader=new FileReader(); reader.onerror=reject; reader.onload=() => resolve(String(reader.result).split(",")[1]); reader.readAsDataURL(file); });
-    const r = await api.adminQuestionImageUpload({token:ctx.admin.token,projectId:ctx.projectId,questionId:q.id,mimeType:file.type,base64});
-    return r.data.url;
+    setUploadState(`正在上傳「${file.name}」，請勿關閉頁面…`);
+    try {
+      const base64 = await new Promise((resolve, reject) => { const reader=new FileReader(); reader.onerror=reject; reader.onload=() => resolve(String(reader.result).split(",")[1]); reader.readAsDataURL(file); });
+      const r = await api.adminQuestionImageUpload({token:ctx.admin.token,projectId:ctx.projectId,questionId:q.id,mimeType:file.type,base64});
+      setUploadState("圖片上傳完成");
+      return r.data.url;
+    } catch (error) {
+      setUploadState("上傳失敗，請重試");
+      throw error;
+    }
   };
   const optionType = [
     "single",
@@ -924,7 +924,7 @@ function QuestionEditor({
     "dropdown",
     "radio_grid",
     "checkbox_grid",
-    ...ADVANCED_OPTION_TYPES,
+    ...ADVANCED_OPTION_TYPES.filter((type) => type !== "cascading"),
   ].includes(q.type);
   const isGrid = ["radio_grid", "checkbox_grid"].includes(q.type);
   const jumpable = ["single", "dropdown"].includes(q.type);
@@ -1067,6 +1067,7 @@ function QuestionEditor({
         </div>
       )}
       <AdvancedEditor q={q} onChange={onChange} uploadImage={uploadQuestionImage} />
+      {uploadState && <div className={uploadState.includes("失敗") ? "alert error" : "alert"} role="status">{uploadState}</div>}
       {q.type === "linked_multi" && (
         <div className="stack">
           <button
@@ -1492,6 +1493,7 @@ function InventoryAdmin({ admin, projectId, data }) {
   return <div className="stack">
     <div className="row spread"><div><h2>庫存管理</h2><p className="muted">手動調整會留下完整異動紀錄；已送出回答改回暫存時會自動歸還。</p></div><button className="btn secondary" onClick={load}>重新整理</button></div>
     <ErrorBox error={error} />
+    {!state.stock.length && <div className="alert"><strong>目前尚未建立庫存題。</strong><br />庫存管理用來限制活動名額、商品數量或預約時段。請先到「問卷設計」新增「限量／庫存題」，替各選項填入初始庫存並儲存；這裡就會顯示剩餘數量與每次增減紀錄。</div>}
     <SimpleTable rows={state.stock.map((r) => ({...r, 題目選項: labels[`${r.question_id}|${r.option_value}`] || `${r.question_id}／${r.option_value}`, 初始庫存: r.initial_stock, 剩餘庫存: r.remaining_stock}))} renderAction={(r) => <button className="btn secondary small" disabled={busy} onClick={() => adjust(r)}>調整</button>} />
     <h3>最近 1,000 筆異動</h3>
     <SimpleTable rows={state.transactions.map((r) => ({時間: fmt(r.created_at), 題目選項: labels[`${r.question_id}|${r.option_value}`] || `${r.question_id}／${r.option_value}`, 帳號或操作者: r.account, 原庫存: r.before_quantity, 異動: r.quantity_delta, 新庫存: r.after_quantity, 原因: r.action}))} />
@@ -2098,9 +2100,12 @@ function Question({
 }) {
   if (q.type === "heading" || q.type === "image_note")
     return (
-      <div>
+      <div className="stack">
         <h3>{q.title}</h3>
         <p className="muted">{q.description}</p>
+        {q.type === "image_note" && q.config?.imageUrl && (
+          <img className="question-note-image" src={imageUrl(q.config.imageUrl)} alt={q.title || "圖片說明"} />
+        )}
       </div>
     );
   const common = {
@@ -2312,7 +2317,8 @@ function Signature({
   const ref = useRef(),
     drawing = useRef(false),
     historyRef = useRef([]),
-    [preview, setPreview] = useState("");
+    [preview, setPreview] = useState(""),
+    [uploading, setUploading] = useState(false);
   useEffect(() => {
     if (value && value.attachmentId)
       downloadFn(value.attachmentId)
@@ -2359,13 +2365,12 @@ function Signature({
     ctx.stroke();
   };
   async function upload() {
-    const base64 = ref.current.toDataURL("image/png").split(",")[1],
-      r = await uploadFn(
-        { type: "image/png", base64 },
-        questionId,
-        "signature",
-      );
-    onChange(r.data);
+    setUploading(true);
+    try {
+      const base64 = ref.current.toDataURL("image/png").split(",")[1], r = await uploadFn({ type: "image/png", base64 }, questionId, "signature");
+      onChange(r.data);
+    } catch (error) { alert(error.message); }
+    finally { setUploading(false); }
   }
   return (
     <div className="stack">
@@ -2420,8 +2425,8 @@ function Signature({
           >
             復原
           </button>
-          <button className="btn primary" disabled={disabled} onClick={upload}>
-            確認簽名
+          <button className="btn primary" disabled={disabled || uploading} onClick={upload}>
+            {uploading ? "簽名上傳中，請稍候…" : "確認簽名"}
           </button>
         </div>
       )}
@@ -2438,14 +2443,15 @@ function Images({
   questionId,
   max,
 }) {
-  const files = Array.isArray(value) ? value : [];
+  const files = Array.isArray(value) ? value : [], [uploading, setUploading] = useState("");
   async function pick(e) {
     const selected = [...e.target.files];
     if (files.length + selected.length > max)
       return alert(`最多 ${max} 個檔案`);
     let currentFiles = [...files];
-    for (const file of selected) {
-      if (file.size > 15 * 1024 * 1024) return alert(`${file.name} 超過 15 MB`);
+    try { for (let index=0; index<selected.length; index++) { const file=selected[index];
+      setUploading(`正在上傳 ${index + 1} / ${selected.length}：${file.name}`);
+      if (file.size > 5 * 1024 * 1024) return alert(`${file.name} 超過 5 MB`);
       const base64 = await new Promise((resolve, reject) => {
           const r = new FileReader();
           r.onload = () => resolve(String(r.result).split(",")[1]);
@@ -2460,17 +2466,17 @@ function Images({
         );
       currentFiles = [...currentFiles, res.data];
       onChange(currentFiles);
-    }
+    }} catch(error) { alert(error.message); } finally { setUploading(""); e.target.value=""; }
   }
   return (
     <div className="stack">
       <label className="dropzone">
-        選擇檔案（單檔 15 MB，最多 {max} 個）
+        {uploading || `選擇檔案（單檔 5 MB，最多 ${max} 個）`}
         <input
           hidden
           type="file"
           multiple
-          disabled={disabled}
+          disabled={disabled || Boolean(uploading)}
           onChange={pick}
         />
       </label>

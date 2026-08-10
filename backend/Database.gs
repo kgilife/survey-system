@@ -1,5 +1,5 @@
 var MASTER_SHEETS_ = {
-  '管理員設定': ['admin_id','admin_name','admin_key_hash','admin_folder_id','status','created_at','last_login_at','email','password','role','email_verified','updated_at'],
+  '管理員設定': ['admin_id','admin_name','admin_folder_id','status','created_at','last_login_at','email','password','role','email_verified','updated_at'],
   '密碼重設紀錄': ['reset_id','admin_id','token_hash','expires_at','used_at','requested_at'],
   '專案索引': ['project_id','admin_id','project_name','project_status','folder_id','spreadsheet_id','login_url','start_date','end_date','created_at','updated_at'],
   '系統設定': ['key','value','updated_at'],
@@ -36,6 +36,12 @@ function ensureSheets_(ss, definitions) {
     }
     sheet.setFrozenRows(1);
   });
+}
+
+function removeDeprecatedAdminColumns_(ss) {
+  var sheet=ss.getSheetByName('管理員設定'); if(!sheet||!sheet.getLastColumn())return;
+  var headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0].map(String);
+  ['admin_key_hash'].forEach(function(name){var index=headers.indexOf(name);if(index>=0){sheet.deleteColumn(index+1);headers.splice(index,1);}});
 }
 
 function rows_(sheet) {
@@ -75,7 +81,7 @@ function deleteWhere_(sheet, predicate) {
   var data = rows_(sheet), kept = data.filter(function(x){ return !predicate(x); }); var count=data.length-kept.length; replaceAll_(sheet,kept); return count;
 }
 
-function master_() { var id=PropertiesService.getScriptProperties().getProperty('MASTER_SPREADSHEET_ID'); if(!id) throw apiError_('NOT_INITIALIZED','系統尚未初始化。'); var ss=SpreadsheetApp.openById(id);ensureSheets_(ss,MASTER_SHEETS_);return ss; }
+function master_() { var id=PropertiesService.getScriptProperties().getProperty('MASTER_SPREADSHEET_ID'); if(!id) throw apiError_('NOT_INITIALIZED','系統尚未初始化。'); var ss=SpreadsheetApp.openById(id);removeDeprecatedAdminColumns_(ss);ensureSheets_(ss,MASTER_SHEETS_);return ss; }
 function projectById_(id) { var p=rows_(master_().getSheetByName('專案索引')).find(function(x){ return String(x.project_id)===String(id); }); if(!p) throw apiError_('NOT_FOUND','找不到此專案。'); return p; }
 function projectDb_(project) { var ss=SpreadsheetApp.openById((project.spreadsheet_id || project));ensureSheets_(ss,PROJECT_SHEETS_);return ss; }
 function settingMap_(sheet) { var out={}; rows_(sheet).forEach(function(x){ out[x.key]=parseJson_(x.value,x.value); }); return out; }

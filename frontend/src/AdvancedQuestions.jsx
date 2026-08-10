@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { allocationTotal, maxDiffSets, normalizePoint } from "./questionLogic";
 export { ADVANCED_OPTION_TYPES } from "./questionLogic";
 
@@ -10,6 +10,29 @@ const Field = ({ label, children }) => (
 );
 const number = (v, fallback = 0) =>
   Number.isFinite(Number(v)) ? Number(v) : fallback;
+const imageUrl = (url = "") => {
+  const match = String(url).match(/[?&]id=([\w-]+)/);
+  return match && String(url).includes("drive.google.com/uc")
+    ? `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1600`
+    : url;
+};
+function DraftNumber({ value, fallback = 0, onCommit, ...props }) {
+  const [draft, setDraft] = useState(String(value ?? fallback));
+  useEffect(() => setDraft(String(value ?? fallback)), [value, fallback]);
+  const commit = () => {
+    const next = draft.trim() === "" || !Number.isFinite(Number(draft)) ? fallback : Number(draft);
+    setDraft(String(next));
+    onCommit(next);
+  };
+  return <input {...props} type="number" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit} />;
+}
+function ImageUploadButton({ uploadImage, onUploaded, small = false }) {
+  const [busy, setBusy] = useState(false);
+  return <label className={`btn secondary${small ? " small" : ""}${busy ? " disabled" : ""}`}>
+    {busy ? "上傳中，請稍候…" : "直接上傳"}
+    <input hidden disabled={busy} type="file" accept="image/jpeg,image/png,image/webp" onChange={async(e) => {const file=e.target.files?.[0];if(!file)return;setBusy(true);try{const url=await uploadImage?.(file);if(url)onUploaded(url);}catch(x){alert(x.message);}finally{setBusy(false);e.target.value="";}}} />
+  </label>;
+}
 export function AdvancedEditor({ q, onChange, uploadImage }) {
   const cfg = q.config || {},
     setCfg = (next) => onChange({ ...q, config: { ...cfg, ...next } });
@@ -17,13 +40,13 @@ export function AdvancedEditor({ q, onChange, uploadImage }) {
     return (
       <div className="row">
         <Field label="最高星數">
-          <input
-            type="number"
+          <DraftNumber
             min="2"
             max="10"
             className="input"
-            value={cfg.max || 5}
-            onChange={(e) => setCfg({ max: number(e.target.value, 5) })}
+            value={cfg.max ?? 5}
+            fallback={5}
+            onCommit={(max) => setCfg({ max })}
           />
         </Field>
       </div>
@@ -32,11 +55,11 @@ export function AdvancedEditor({ q, onChange, uploadImage }) {
     return (
       <div className="row">
         <Field label="目標總數">
-          <input
-            type="number"
+          <DraftNumber
             className="input"
             value={cfg.target ?? 100}
-            onChange={(e) => setCfg({ target: number(e.target.value, 100) })}
+            fallback={100}
+            onCommit={(target) => setCfg({ target })}
           />
         </Field>
         <Field label="單位">
@@ -51,12 +74,12 @@ export function AdvancedEditor({ q, onChange, uploadImage }) {
   if (q.type === "ranking")
     return (
       <Field label="最多排序數量（0 代表全部）">
-        <input
-          type="number"
+        <DraftNumber
           min="0"
           className="input"
-          value={cfg.rankLimit || 0}
-          onChange={(e) => setCfg({ rankLimit: number(e.target.value) })}
+          value={cfg.rankLimit ?? 0}
+          fallback={0}
+          onCommit={(rankLimit) => setCfg({ rankLimit })}
         />
       </Field>
     );
@@ -71,14 +94,14 @@ export function AdvancedEditor({ q, onChange, uploadImage }) {
         允許多選
       </label>
     );
-  if (q.type === "heatmap")
+  if (q.type === "heatmap" || q.type === "image_note")
     return (
       <Field label="底圖網址">
         <div className="row"><input
           className="input"
           value={cfg.imageUrl || ""}
           onChange={(e) => setCfg({ imageUrl: e.target.value })}
-        /><label className="btn secondary">直接上傳<input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={async(e) => {try{const url=await uploadImage?.(e.target.files[0]);if(url)setCfg({imageUrl:url});}catch(x){alert(x.message);}}} /></label></div>
+        /><ImageUploadButton uploadImage={uploadImage} onUploaded={(imageUrl) => setCfg({imageUrl})} /></div>
       </Field>
     );
   if (q.type === "text_highlight")
@@ -113,9 +136,10 @@ export function AdvancedEditor({ q, onChange, uploadImage }) {
     );
   if (q.type === "cascading")
     return (
-      <p className="muted small">
-        選項格式：第一層填「縣市」，第二層填「縣市 / 行政區」。
-      </p>
+      <Field label="巢狀結構（可直接從 Excel 貼上）">
+        <textarea className="input cascading-editor" placeholder={'縣市\t行政區\t里別\n台北市\t中正區\t黎明里\n台北市\t大安區\t龍安里'} value={(q.options || []).map((o) => String(o.label || o.value).split("/").map((x) => x.trim()).join("\t")).join("\n")} onChange={(e) => {const options=e.target.value.split(/\r?\n/).map((line) => line.split(/\t|\s*\/\s*/).map((x) => x.trim()).filter(Boolean)).filter((path) => path.length).map((path) => ({value:path.join(" / "),label:path.join(" / ")}));onChange({...q,options});}} />
+        <span className="muted small">每列是一條完整路徑；欄與欄之間可用 Excel 的 Tab 或「/」分隔。可一次貼上數百列，系統會自動建立各層選單。</span>
+      </Field>
     );
   if (q.type === "location")
     return (
@@ -126,8 +150,8 @@ export function AdvancedEditor({ q, onChange, uploadImage }) {
   if (q.type === "maxdiff")
     return (
       <div className="row">
-        <Field label="每輪顯示選項"><input type="number" min="2" className="input" value={cfg.setSize || 4} onChange={(e) => setCfg({setSize:number(e.target.value,4)})} /></Field>
-        <Field label="交叉題組輪數"><input type="number" min="1" className="input" value={cfg.rounds || Math.max(1,q.options.length)} onChange={(e) => setCfg({rounds:number(e.target.value,1)})} /></Field>
+        <Field label="每輪顯示選項"><DraftNumber min="2" className="input" value={cfg.setSize ?? 4} fallback={4} onCommit={(setSize) => setCfg({setSize})} /></Field>
+        <Field label="交叉題組輪數"><DraftNumber min="1" className="input" value={cfg.rounds ?? Math.max(1,q.options.length)} fallback={Math.max(1,q.options.length)} onCommit={(rounds) => setCfg({rounds})} /></Field>
       </div>
     );
   return null;
@@ -151,17 +175,17 @@ export function AdvancedOptionFields({ q, index, onChange, uploadImage }) {
           placeholder="圖片網址"
           value={o.imageUrl || ""}
           onChange={(e) => update({ imageUrl: e.target.value })}
-        /><label className="btn secondary small">上傳<input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={async(e) => {try{const url=await uploadImage?.(e.target.files[0]);if(url)update({imageUrl:url});}catch(x){alert(x.message);}}} /></label></>
+        /><ImageUploadButton small uploadImage={uploadImage} onUploaded={(imageUrl) => update({imageUrl})} /></>
       )}{" "}
       {q.type === "inventory" && (
-        <input
-          type="number"
+        <DraftNumber
           min="0"
           className="input"
           style={{ width: 130 }}
           placeholder="庫存"
           value={o.stock ?? 0}
-          onChange={(e) => update({ stock: number(e.target.value) })}
+          fallback={0}
+          onCommit={(stock) => update({ stock })}
         />
       )}
     </>
@@ -192,7 +216,7 @@ function ImageChoice({ q, value, onChange, disabled }) {
             }
           >
             {o.imageUrl ? (
-              <img src={o.imageUrl} alt={o.label} />
+              <img src={imageUrl(o.imageUrl)} alt={o.label} />
             ) : (
               <div className="image-placeholder">無圖片</div>
             )}
@@ -313,15 +337,13 @@ function Allocation({ q, value, onChange, disabled }) {
     <div className="stack">
       {q.options.map((o) => (
         <Field key={o.value} label={o.label}>
-          <input
-            type="number"
+          <DraftNumber
             min="0"
             className="input"
             disabled={disabled}
             value={vals[o.value] ?? 0}
-            onChange={(e) =>
-              onChange({ ...vals, [o.value]: number(e.target.value) })
-            }
+            fallback={0}
+            onCommit={(next) => onChange({ ...vals, [o.value]: next })}
           />
         </Field>
       ))}
@@ -342,17 +364,15 @@ function Inventory({ q, value, onChange, disabled }) {
             <strong>{o.label}</strong>
             <div className="muted small">剩餘 {o.remaining ?? 0}</div>
           </div>
-          <input
-            type="number"
+          <DraftNumber
             min="0"
             max={o.remaining + number(vals[o.value])}
             className="input"
             style={{ width: 110 }}
             disabled={disabled || (o.remaining <= 0 && !vals[o.value])}
             value={vals[o.value] ?? 0}
-            onChange={(e) =>
-              onChange({ ...vals, [o.value]: number(e.target.value) })
-            }
+            fallback={0}
+            onCommit={(next) => onChange({ ...vals, [o.value]: next })}
           />
         </div>
       ))}
@@ -381,7 +401,7 @@ function Heatmap({ q, value, onChange, disabled }) {
       }}
     >
       {q.config?.imageUrl ? (
-        <img src={q.config.imageUrl} alt={q.title} />
+        <img src={imageUrl(q.config.imageUrl)} alt={q.title} />
       ) : (
         <div className="image-placeholder">尚未設定底圖</div>
       )}
@@ -594,10 +614,12 @@ function Location({ value, onChange, disabled }) {
 }
 function Terms({ q, value, onChange, disabled }) {
   const v = value || {},
-    [bottom, setBottom] = useState(false);
+    [bottom, setBottom] = useState(false), boxRef = useRef();
+  useEffect(() => { const x=boxRef.current; if(x && x.scrollHeight <= x.clientHeight + 4) setBottom(true); }, [q.config?.terms]);
   return (
     <div className="stack">
       <div
+        ref={boxRef}
         className="terms-box"
         onScroll={(e) => {
           const x = e.currentTarget;
