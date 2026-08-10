@@ -35,7 +35,7 @@ var API_ROUTES_ = {
   respondentProject: respondentProject_, respondentLogin: respondentLogin_, respondentLogout: respondentLogout_,
   respondentSurvey: respondentSurvey_, respondentSave: respondentSave_, respondentSubmit: respondentSubmit_,
   respondentUpload: respondentUpload_, respondentDeleteAttachment: respondentDeleteAttachment_,
-  attachment: attachmentDownload_
+  attachmentDownload: attachmentDownload_
 };
 
 function parseRequest_(e, method) {

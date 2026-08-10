@@ -1456,7 +1456,6 @@ function Stats({ admin, projectId, data }) {
 function InventoryAdmin({ admin, projectId, data }) {
   const [state, setState] = useState({ stock: [], transactions: [] });
   const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(false);
   const labels = Object.fromEntries(
     data.schema.questions.flatMap((q) =>
       (q.options || []).map((o) => [`${q.id}|${o.value}`, `${q.title}／${o.label}`]),
@@ -1469,22 +1468,11 @@ function InventoryAdmin({ admin, projectId, data }) {
     } catch (e) { setError(e); }
   };
   useEffect(() => { load(); }, [projectId]);
-  async function adjust(row) {
-    const raw = prompt("調整數量（正數增加、負數減少）", "1");
-    if (raw === null) return;
-    const delta = Number(raw);
-    if (!Number.isInteger(delta) || delta === 0) { window.toast("請輸入非零整數。", "error"); return; }
-    setBusy(true);
-    try {
-      await api.adminAdjustInventory({ token: admin.token, projectId, questionId: row.question_id, optionValue: row.option_value, delta });
-      await load();
-    } catch (e) { setError(e); } finally { setBusy(false); }
-  }
   return <div className="stack">
-    <div className="row spread"><div><h2>庫存管理</h2><p className="muted">手動調整會留下完整異動紀錄；已送出回答改回暫存時會自動歸還。</p></div><button className="btn secondary" onClick={load}>重新整理</button></div>
+    <div className="row spread"><div><h2>庫存管理</h2><p className="muted">已送出回答改回暫存時會自動歸還庫存。如需調整初始庫存，請至「問卷設計」修改。</p></div><button className="btn secondary" onClick={load}>重新整理</button></div>
     <ErrorBox error={error} />
     {!state.stock.length && <div className="alert"><strong>目前尚未建立庫存題。</strong><br />庫存管理用來限制活動名額、商品數量或預約時段。請先到「問卷設計」新增「限量／庫存題」，替各選項填入初始庫存並儲存；這裡就會顯示剩餘數量與每次增減紀錄。</div>}
-    <SimpleTable rows={state.stock.map((r) => ({...r, 題目選項: labels[`${r.question_id}|${r.option_value}`] || `${r.question_id}／${r.option_value}`, 初始庫存: r.initial_stock, 剩餘庫存: r.remaining_stock}))} renderAction={(r) => <button className="btn secondary small" disabled={busy} onClick={() => adjust(r)}>調整</button>} />
+    <SimpleTable rows={state.stock.map((r) => ({...r, 題目選項: labels[`${r.question_id}|${r.option_value}`] || `${r.question_id}／${r.option_value}`, 初始庫存: r.initial_stock, 剩餘庫存: r.remaining_stock}))} />
     <h3>最近 1,000 筆異動</h3>
     <SimpleTable rows={state.transactions.map((r) => ({時間: fmt(r.created_at), 題目選項: labels[`${r.question_id}|${r.option_value}`] || `${r.question_id}／${r.option_value}`, 帳號或操作者: r.account, 原庫存: r.before_quantity, 異動: r.quantity_delta, 新庫存: r.after_quantity, 原因: r.action}))} />
   </div>;
@@ -2401,18 +2389,29 @@ function Signature({
     drawing = useRef(false),
     historyRef = useRef([]),
     [preview, setPreview] = useState(""),
-    [uploading, setUploading] = useState(false);
+    [uploading, setUploading] = useState(false),
+    [loadingPreview, setLoadingPreview] = useState(Boolean(value && value.attachmentId));
+
   useEffect(() => {
-    if (value && value.attachmentId)
+    if (value && value.attachmentId) {
+      setLoadingPreview(true);
       downloadFn(value.attachmentId)
-        .then((r) =>
-          setPreview(`data:${r.data.mimeType};base64,${r.data.base64}`),
-        )
-        .catch(console.error);
-    else setPreview("");
+        .then((r) => {
+          setPreview(`data:${r.data.mimeType};base64,${r.data.base64}`);
+          setLoadingPreview(false);
+        })
+        .catch((e) => {
+          console.error(e);
+          setLoadingPreview(false);
+        });
+    } else {
+      setPreview("");
+      setLoadingPreview(false);
+    }
   }, [value, downloadFn]);
+
   useEffect(() => {
-    if (preview) return;
+    if (preview || loadingPreview) return;
     const c = ref.current;
     if (!c) return;
     const ctx = c.getContext("2d"),
@@ -2422,7 +2421,7 @@ function Signature({
     ctx.scale(ratio, ratio);
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
-  }, [preview]);
+  }, [preview, loadingPreview]);
   const point = (e) => {
     const r = ref.current.getBoundingClientRect(),
       p = e.touches?.[0] || e;
@@ -2458,7 +2457,11 @@ function Signature({
   }
   return (
     <div className="stack">
-      {preview ? (
+      {loadingPreview ? (
+        <div style={{ padding: 40, textAlign: "center", background: "#f9f9f9", borderRadius: 4, border: "1px dashed #ddd", color: "#666" }}>
+          讀取先前的簽名中，請稍候…
+        </div>
+      ) : preview ? (
         <div style={{ position: "relative" }}>
           <img
             src={preview}
@@ -2485,7 +2488,7 @@ function Signature({
           onPointerUp={() => (drawing.current = false)}
         />
       )}
-      {!preview && (
+      {!preview && !loadingPreview && (
         <div className="row">
           <button
             className="btn secondary"
