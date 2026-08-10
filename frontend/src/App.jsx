@@ -153,7 +153,7 @@ function Header({ admin }) {
   return (
     <header className="topbar">
       <div className="brand" onClick={() => go(admin ? "/admin" : "/")}>
-        <span className="brand-mark">問</span>問卷調查管理系統
+        <span className="brand-mark">問</span><span>問卷所<small className="brand-context">管理工作區</small></span>
       </div>
       {admin && (
         <div className="row">
@@ -757,9 +757,7 @@ function Users({ admin, projectId, data, setData, reload, setError }) {
       ))}
       <hr />
       <h2>Excel／TXT 批次貼上</h2>
-      <p className="muted">
-        第一列可使用 account、password 與自訂欄位名稱；Tab 分欄、換行分筆。
-      </p>
+      <div className="howto-note"><strong>第一次使用？照這 4 步就好</strong><ol><li>在 Excel 第一列輸入欄位名稱：account、password、姓名、部門。</li><li>從第二列開始，每一列放一位使用者；account 和 password 必須填寫。</li><li>選取所有資料後按 Ctrl+C（Mac 按 ⌘C）。</li><li>點下方大輸入框，再按 Ctrl+V（Mac 按 ⌘V）。確認筆數後按「確認匯入」。</li></ol><span>小提醒：第一次操作建議先貼 2 筆測試。系統以 Excel 的欄格分欄、每一列視為一位使用者。</span></div>
       <textarea
         className="input"
         value={paste}

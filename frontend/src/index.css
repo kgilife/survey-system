@@ -1,17 +1,17 @@
 :root {
   font-family: Inter, "Noto Sans TC", "Microsoft JhengHei", -apple-system, BlinkMacSystemFont, sans-serif;
-  color: #18243a;
-  background: #f4f7fb;
+  color: #171817;
+  background: #f5f5f2;
   font-synthesis: none;
-  --ink: #18243a;
-  --muted: #65738b;
-  --line: #dce3ed;
-  --brand: #176b87;
-  --brand2: #0f4f67;
-  --soft: #e7f4f7;
+  --ink: #171817;
+  --muted: #686963;
+  --line: #d9d9d3;
+  --brand: #171817;
+  --brand2: #30312e;
+  --soft: #efffc1;
   --danger: #b42318;
   --ok: #16794a;
-  --shadow: 0 8px 28px rgba(28, 50, 72, 0.08);
+  --shadow: 0 14px 40px rgba(28, 29, 26, 0.07);
 }
 * {
   box-sizing: border-box;
@@ -715,3 +715,23 @@ th {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* 問卷所：產品介面與公開網站共用的品牌語言 */
+.topbar{height:66px;background:rgba(245,245,242,.92);backdrop-filter:blur(18px)}
+.brand-mark{width:34px;height:34px;border-radius:50%;background:#171817}
+.brand-context{display:block;margin-top:1px;color:var(--muted);font-size:.65rem;font-weight:600;letter-spacing:.08em}
+.card{border-radius:18px}.hero{background:#171817;border-radius:22px}.btn{border-radius:999px}.btn.secondary{background:#d9ff57;color:#171817}
+.survey-head{background:#171817}.progress>div{background:#d9ff57}
+.howto-note{padding:16px 18px;border:1px solid #d8ddc7;border-radius:14px;background:#f7fbe9;line-height:1.6}
+.howto-note strong{display:block;margin-bottom:7px}.howto-note ol{margin:0 0 8px;padding-left:22px}.howto-note span{color:var(--muted);font-size:.85rem}
+.guide-detail{grid-template-columns:minmax(0,1fr) minmax(320px,.9fr);gap:clamp(28px,5vw,72px);padding-bottom:42px}
+.guide-detail small{display:block;color:#71726d;font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.guide-copy{display:grid;gap:26px}.guide-copy section{padding-bottom:22px;border-bottom:1px solid #e2e2dc}
+.guide-list{border-top:0}.guide-group{margin-top:52px}.guide-group:first-child{margin-top:0}.guide-group>header{display:flex;align-items:baseline;gap:16px;padding:0 0 14px;border-bottom:2px solid #171817}.guide-group>header span{font-size:1.35rem;font-weight:850;letter-spacing:-.03em}.guide-group>header p{margin:0;color:#85867f;font-size:.82rem}.guide-group details{border-bottom:1px solid #cfcfca}.guide-group .guide-detail{padding-left:0}.guide-group summary{grid-template-columns:210px 1fr 30px}.guide-group summary b{font-size:1.1rem}
+.guide-detail ol{margin:12px 0 0;padding-left:22px;display:grid;gap:10px;line-height:1.65}
+.answer-preview{margin-top:12px;border:1px solid #d8d8d2;border-radius:14px;background:#f5f5f2;overflow:hidden;box-shadow:0 12px 30px rgba(20,20,18,.08)}
+.answer-browser{height:34px;background:#e9e9e5;display:flex;align-items:center;gap:5px;padding:0 10px}.answer-browser i{width:7px;height:7px;border-radius:50%;background:#b8b8b2}.answer-browser span{margin-left:auto;color:#85857f;font-size:.65rem}
+.answer-sheet{margin:18px;background:#fff;border-radius:10px;padding:20px;display:grid;gap:13px}.answer-sheet small{color:#777}.answer-sheet small span{color:#b42318}.answer-sheet strong{line-height:1.5}
+.fake-input{border:1px solid #d6d6d0;border-radius:8px;padding:11px;color:#aaa;font-size:.8rem}.fake-options{display:grid;gap:9px}.fake-options label{display:flex;align-items:center;gap:9px;font-size:.82rem}.fake-options i{width:15px;height:15px;border:1px solid #999;border-radius:50%}.fake-options i.square{border-radius:3px}.preview-caption{font-size:.75rem;color:#777}
+@media(max-width:850px){.guide-detail{padding-left:0;grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.landing-nav{padding-inline:14px}.landing-nav .nav-cta{padding:9px 13px}.landing-hero{padding:56px 16px 0}.landing-hero h1{font-size:clamp(2.75rem,15vw,4rem);line-height:.94;letter-spacing:-.065em}.landing-hero>p{font-size:.98rem;line-height:1.65}.preview-question{padding:17px 14px;grid-template-columns:25px 1fr}.promise>h2,.guide h2,.steps h2{font-size:2.55rem;line-height:1}.guide-group{margin-top:38px}.guide-group>header{display:block}.guide-group>header p{margin-top:5px}.guide-group summary{grid-template-columns:1fr 25px}.guide-detail{padding-left:0;grid-template-columns:1fr;gap:24px}.answer-sheet{margin:10px;padding:16px}}

@@ -28,6 +28,15 @@ const QUESTION_GUIDE = [
   ["連結型題目", "依使用者資料帶入部門並追問", "先確認連結欄位唯一且資料完整。讓填答者看得懂系統帶入了什麼，以及能否修正。"],
 ];
 
+const GUIDE_GROUPS = [
+  { name: "基礎與文字", hint: "收集文字、日期與時間", items: ["簡答", "詳答", "日期／時間"] },
+  { name: "標準選擇", hint: "讓填答者從選項中回答", items: ["單選題", "核取方塊", "下拉式選單", "圖片選擇"] },
+  { name: "評分與矩陣", hint: "比較程度、分數與多個項目", items: ["線性刻度", "星級評分", "單選方格", "核取方塊格", "總計分配"] },
+  { name: "視覺與多媒體", hint: "用圖片、檔案或互動畫面收集答案", items: ["檔案／圖片上傳", "簽名", "熱點點擊", "文字螢光筆", "地圖定位"] },
+  { name: "進階研究與邏輯", hint: "處理排序、名額、偏好與同意流程", items: ["巢狀選擇", "項目排序", "限量／庫存", "最大差異法", "條款同意"] },
+  { name: "個人化動態", hint: "依使用者資料帶入或追問", items: ["連結型題目"] },
+];
+
 function MiniBuilder() {
   return <div className="product-preview" aria-label="問卷編輯器示意">
     <div className="preview-bar"><i/><span/><span/></div>
@@ -42,9 +51,33 @@ function MiniBuilder() {
   </div>;
 }
 
+const stepFor = (name) => {
+  if (name.includes("巢狀")) return ["進入「問卷設計」，新增「巢狀選擇」。", "在 Excel 將每一層放在不同欄，例如 A 欄縣市、B 欄行政區、C 欄門市。", "選取資料後按 Ctrl+C，回到問卷所點資料框，再按 Ctrl+V。", "按「儲存」，用預覽確認選了第一層後才會出現第二層。"];
+  if (name.includes("方格")) return ["新增題目後，先在「列」輸入要詢問的項目。", "在「欄」輸入每個項目共用的答案。", "單選方格每列只能選一格；核取方塊格每列可以選很多格。", "按「儲存」後用手機預覽，確認表格不會太寬。"];
+  if (name.includes("上傳") || name.includes("圖片上傳")) return ["新增「檔案／圖片上傳」題。", "把允許的格式、大小與最多張數寫進題目說明。", "只有真的需要時才開啟「必填」。", "儲存後實際上傳一個測試檔案，確認看得到檔名。"];
+  if (name.includes("分配")) return ["新增「總計分配」題，輸入要比較的項目。", "設定總分，例如 100 點。", "在題目中告訴填答者：全部數字加起來必須等於 100。", "預覽並測試少於或超過總分時的提示。"];
+  if (name.includes("排序")) return ["新增「項目排序」題。", "每行輸入一個項目，建議 5 到 8 個。", "說清楚排序方向，例如最重要放最上面。", "預覽時試著拖曳，手機上也要能順利移動。"];
+  if (name.includes("連結型")) return ["先到「使用者設定」建立 account 與要帶入的資料欄位。", "新增連結型題目，選擇要對應的使用者欄位。", "設定資料帶入後要顯示或追問的內容。", "用一個測試帳號登入預覽，確認帶入資料正確。"];
+  return ["進入專案的「問卷設計」，按「新增題目」。", `在題型清單選擇「${name}」，再輸入清楚的題目。`, "依需要加入選項、說明，只有一定要回答時才開啟「必填」。", "按「儲存」，再用「預覽」親自填一次。"];
+};
+
+function AnswerPreview({ name, example }) {
+  const many = name.includes("核取") || name.includes("上傳");
+  const options = name.includes("評分") || name.includes("刻度") ? ["1", "2", "3", "4", "5"] : ["選項 A", "選項 B", "其他"];
+  return <div className="answer-preview" aria-label={`${name}填答畫面範例`}>
+    <div className="answer-browser"><i/><i/><i/><span>填答畫面</span></div>
+    <div className="answer-sheet"><small>問題 1　<span>＊必填</span></small><strong>{example}</strong>
+      {(name.includes("簡答") || name.includes("詳答") || name.includes("日期") || name.includes("時間") || name.includes("定位"))
+        ? <div className="fake-input">請在這裡輸入答案…</div>
+        : <div className="fake-options">{options.map(x => <label key={x}><i className={many ? "square" : ""}/>{x}</label>)}</div>}
+    </div>
+  </div>;
+}
+
 export default function Landing() {
   const [query, setQuery] = useState("");
   const list = useMemo(() => QUESTION_GUIDE.filter(x => x.join(" ").includes(query.trim())), [query]);
+  const groupedList = useMemo(() => GUIDE_GROUPS.map(group => ({...group, guides: list.filter(item => group.items.includes(item[0]))})).filter(group => group.guides.length), [list]);
   return <div className="landing">
     <nav className="landing-nav" aria-label="主要導覽">
       <button className="landing-brand" onClick={() => scrollTo({top:0, behavior:"smooth"})}><span>問</span>問卷所</button>
@@ -78,7 +111,7 @@ export default function Landing() {
       <section className="guide" id="guide">
         <div className="guide-head"><div><p className="section-kicker">題型指南</p><h2>每一題，都有正確的問法。</h2><p>從常見選項到研究型題目，這裡提供可直接套用的設定案例。</p></div><label className="guide-search"><span>搜尋題型或情境</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="例如：評分、預約、圖片"/><i>⌕</i></label></div>
         <div className="guide-list">
-          {list.map(([name, example, note], index) => <details key={name} open={!query && index < 3}><summary><span>{String(index + 1).padStart(2,"0")}</span><b>{name}</b><em>{example}</em><i>＋</i></summary><div className="guide-detail"><div><small>設定案例</small><p>{example}</p></div><div><small>設計提醒</small><p>{note}</p></div></div></details>)}
+          {groupedList.map((group, groupIndex) => <section className="guide-group" key={group.name}><header><span>{group.name}</span><p>{group.hint}</p></header>{group.guides.map(([name, example, note], itemIndex) => <details key={name} open={!query && groupIndex === 0 && itemIndex === 0}><summary><b>{name}</b><em>{example}</em><i>＋</i></summary><div className="guide-detail"><div className="guide-copy"><section><small>這種題目適合什麼時候？</small><p>{note}</p></section><section><small>管理頁面怎麼設定？</small><ol>{stepFor(name).map(step => <li key={step}>{step}</li>)}</ol></section></div><section><small>填答者實際會看到</small><AnswerPreview name={name} example={example}/><p className="preview-caption">這是簡化示意；實際畫面會套用你的題目、選項與必填設定。</p></section></div></details>)}</section>)}
           {!list.length && <div className="empty-guide">找不到符合的題型。試試「選擇」、「評分」或「上傳」。</div>}
         </div>
       </section>

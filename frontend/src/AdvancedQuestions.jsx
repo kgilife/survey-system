@@ -136,9 +136,9 @@ export function AdvancedEditor({ q, onChange, uploadImage }) {
     );
   if (q.type === "cascading")
     return (
-      <Field label="巢狀結構（可直接從 Excel 貼上）">
+      <Field label="巢狀選單資料">
         <textarea className="input cascading-editor" placeholder={'縣市\t行政區\t里別\n台北市\t中正區\t黎明里\n台北市\t大安區\t龍安里'} value={(q.options || []).map((o) => String(o.label || o.value).split("/").map((x) => x.trim()).join("\t")).join("\n")} onChange={(e) => {const options=e.target.value.split(/\r?\n/).map((line) => line.split(/\t|\s*\/\s*/).map((x) => x.trim()).filter(Boolean)).filter((path) => path.length).map((path) => ({value:path.join(" / "),label:path.join(" / ")}));onChange({...q,options});}} />
-        <span className="muted small">每列是一條完整路徑；欄與欄之間可用 Excel 的 Tab 或「/」分隔。可一次貼上數百列，系統會自動建立各層選單。</span>
+        <div className="howto-note"><strong>從 Excel 貼上的方法</strong><ol><li>在 Excel 把「縣市、行政區、里別」分別放在 A、B、C 欄。</li><li>用滑鼠選取資料（不用選欄位標題），按 Ctrl+C 複製。</li><li>點一下上方白色輸入框，按 Ctrl+V 貼上。</li></ol><span>每一列代表一條完整路徑。沒有 Excel 也可以手動輸入，例如：台北市 / 中正區 / 黎明里。</span></div>
       </Field>
     );
   if (q.type === "location")
