@@ -57,6 +57,8 @@ function rows_(sheet) {
 
 function append_(sheet, record) {
   var headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
+  var passwordColumn=headers.indexOf('password')+1;
+  if(passwordColumn>0)sheet.getRange(sheet.getLastRow()+1,passwordColumn).setNumberFormat('@');
   sheet.appendRow(headers.map(function(h) { return record[h] === undefined ? '' : record[h]; })); return record;
 }
 
@@ -77,7 +79,9 @@ function updateWhere_(sheet, predicate, changes) {
   if (!matched.length) return false;
   Object.keys(changes).forEach(function(k){
     var c=headers.indexOf(k); if(c<0)return;
-    sheet.getRangeList(matched.map(function(row){return columnName_(c+1)+row;})).setValue(changes[k]);
+    var targets=sheet.getRangeList(matched.map(function(row){return columnName_(c+1)+row;}));
+    if(k==='password')targets.setNumberFormat('@');
+    targets.setValue(changes[k]);
   });
   return true;
 }

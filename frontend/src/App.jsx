@@ -1564,25 +1564,36 @@ function Stats({ admin, projectId, data }) {
 function InventoryAdmin({ admin, projectId, data }) {
   const [state, setState] = useState({ stock: [], transactions: [] });
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
   const labels = Object.fromEntries(
     data.schema.questions.flatMap((q) =>
       (q.options || []).map((o) => [`${q.id}|${o.value}`, `${q.title}／${o.label}`]),
     ),
   );
   const load = async () => {
+    setLoading(true);
     try {
       setState((await api.adminInventory({ token: admin.token, projectId })).data);
       setError(null);
-    } catch (e) { setError(e); }
+    } catch (e) {
+      setError(e);
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, [projectId]);
   return <div className="stack">
-    <div className="row spread"><div><h2>庫存管理</h2><p className="muted">已送出回答改回暫存時會自動歸還庫存。如需調整初始庫存，請至「問卷設計」修改。</p></div><button className="btn secondary" onClick={load}>重新整理</button></div>
+    <div className="row spread"><div><h2>庫存管理</h2><p className="muted">已送出回答改回暫存時會自動歸還庫存。如需調整初始庫存，請至「問卷設計」修改。</p></div><button type="button" className="btn secondary" disabled={loading} onClick={load}>{loading ? "讀取中…" : "重新整理"}</button></div>
     <ErrorBox error={error} />
-    {!state.stock.length && <div className="alert"><strong>目前尚未建立庫存題。</strong><br />庫存管理用來限制活動名額、商品數量或預約時段。請先到「問卷設計」新增「限量／庫存題」，替各選項填入初始庫存並儲存；這裡就會顯示剩餘數量與每次增減紀錄。</div>}
-    <SimpleTable rows={state.stock.map((r) => ({...r, 題目選項: labels[`${r.question_id}|${r.option_value}`] || `${r.question_id}／${r.option_value}`, 初始庫存: r.initial_stock, 剩餘庫存: r.remaining_stock}))} />
+    {loading ? <div className="alert">資料讀取中，請稍候…</div> : !error && !state.stock.length && <div className="alert"><strong>目前尚未建立庫存題。</strong><br />庫存管理用來限制活動名額、商品數量或預約時段。請先到「問卷設計」新增「限量／庫存題」，替各選項填入初始庫存並儲存；這裡就會顯示剩餘數量與每次增減紀錄。</div>}
+    {!loading && <SimpleTable rows={state.stock.map((r) => ({
+      題目選項: labels[`${r.question_id}|${r.option_value}`] || `${r.question_id}／${r.option_value}`,
+      初始庫存: r.initial_stock,
+      剩餘庫存: r.remaining_stock,
+      最後更新: fmt(r.updated_at),
+    }))} />}
     <h3>最近 1,000 筆異動</h3>
-    <SimpleTable rows={state.transactions.map((r) => ({時間: fmt(r.created_at), 題目選項: labels[`${r.question_id}|${r.option_value}`] || `${r.question_id}／${r.option_value}`, 帳號或操作者: r.account, 原庫存: r.before_quantity, 異動: r.quantity_delta, 新庫存: r.after_quantity, 原因: r.action}))} />
+    {loading ? <div className="alert">資料讀取中，請稍候…</div> : <SimpleTable rows={state.transactions.map((r) => ({時間: fmt(r.created_at), 題目選項: labels[`${r.question_id}|${r.option_value}`] || `${r.question_id}／${r.option_value}`, 帳號或操作者: r.account, 原庫存: r.before_quantity, 異動: r.quantity_delta, 新庫存: r.after_quantity, 原因: r.action}))} />}
   </div>;
 }
 
@@ -1637,7 +1648,10 @@ function ExportButtons({ admin, projectId, buttons }) {
 }
 function Attachments({ admin, projectId }) {
   const [rows, setRows] = useState([]),
-    [loading, setLoading] = useState(true);
+    [loading, setLoading] = useState(true),
+    [preview, setPreview] = useState(null),
+    [deleting, setDeleting] = useState(null),
+    [deleteTarget, setDeleteTarget] = useState(null);
   const load = () => {
     setLoading(true);
     api
@@ -1651,6 +1665,77 @@ function Attachments({ admin, projectId }) {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (preview?.url) URL.revokeObjectURL(preview.url);
+    };
+  }, [preview?.url]);
+
+  async function openPreview(row) {
+    setPreview({ row, loading: true, url: "", mimeType: "", error: "" });
+    try {
+      const response = await api.attachmentDownload({
+        token: admin.token,
+        projectId,
+        attachmentId: row.attachment_id,
+        role: "admin",
+      });
+      const binary = atob(response.data.base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      const url = URL.createObjectURL(
+        new Blob([bytes], { type: response.data.mimeType }),
+      );
+      setPreview({
+        row,
+        loading: false,
+        url,
+        mimeType: response.data.mimeType,
+        fileName: response.data.fileName,
+        error: "",
+      });
+    } catch (error) {
+      setPreview({
+        row,
+        loading: false,
+        url: "",
+        mimeType: "",
+        error: error.message || "無法讀取附件。",
+      });
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget || deleting) return;
+    setDeleting(deleteTarget.attachment_id);
+    try {
+      await api.adminDeleteAttachment({
+        token: admin.token,
+        projectId,
+        attachmentId: deleteTarget.attachment_id,
+      });
+      setRows((current) =>
+        current.filter((row) => row.attachment_id !== deleteTarget.attachment_id),
+      );
+      setDeleteTarget(null);
+      window.toast("附件已刪除", "success");
+    } catch (error) {
+      window.toast(error.message || "附件刪除失敗。", "error");
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  const displayRows = rows.map((r) => ({
+    帳號: r.account,
+    題目: r.question_id,
+    類型: r.attachment_type,
+    檔名: r.file_name,
+    大小: Math.round(r.file_size / 1024) + " KB",
+    上傳時間: fmt(r.uploaded_at),
+  }));
+  const canPreviewImage = /^image\/(jpeg|png|webp|gif)$/i.test(preview?.mimeType || "");
   return (
     <div className="stack">
       <div className="row spread">
@@ -1665,15 +1750,85 @@ function Attachments({ admin, projectId }) {
         <div className="alert">資料載入中，請稍候…</div>
       ) : (
         <SimpleTable
-          rows={rows.map((r) => ({
-            帳號: r.account,
-            題目: r.question_id,
-            類型: r.attachment_type,
-            檔名: r.file_name,
-            大小: Math.round(r.file_size / 1024) + " KB",
-            上傳時間: fmt(r.uploaded_at),
-          }))}
+          rows={displayRows}
+          renderAction={(_, index) => (
+            <div className="row attachment-actions">
+              <button className="btn secondary small" onClick={() => openPreview(rows[index])}>
+                查看
+              </button>
+              <button className="btn danger small" onClick={() => setDeleteTarget(rows[index])}>
+                刪除
+              </button>
+            </div>
+          )}
         />
+      )}
+      {preview && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setPreview(null)}>
+          <section
+            className="modal-panel attachment-preview"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="attachment-preview-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="row spread">
+              <h3 id="attachment-preview-title">查看附件</h3>
+              <button className="btn ghost" aria-label="關閉附件預覽" onClick={() => setPreview(null)}>關閉</button>
+            </div>
+            <dl className="attachment-meta">
+              <div><dt>帳號</dt><dd>{preview.row.account}</dd></div>
+              <div><dt>題目</dt><dd>{preview.row.question_id}</dd></div>
+              <div><dt>檔名</dt><dd>{preview.row.file_name}</dd></div>
+              <div><dt>大小</dt><dd>{Math.round(preview.row.file_size / 1024)} KB</dd></div>
+              <div><dt>上傳時間</dt><dd>{fmt(preview.row.uploaded_at)}</dd></div>
+            </dl>
+            <div className="attachment-preview-body">
+              {preview.loading && <div className="alert">附件載入中，請稍候…</div>}
+              {preview.error && <div className="alert error">{preview.error}</div>}
+              {!preview.loading && preview.url && canPreviewImage && (
+                <img src={preview.url} alt={preview.fileName || preview.row.file_name} />
+              )}
+              {!preview.loading && preview.url && !canPreviewImage && (
+                <div className="alert">此檔案格式無法直接預覽，請下載原始檔查看。</div>
+              )}
+            </div>
+            <div className="row attachment-modal-actions">
+              {preview.url && (
+                <a className="btn primary" href={preview.url} download={preview.fileName || preview.row.file_name}>
+                  下載原始檔
+                </a>
+              )}
+              <button className="btn secondary" onClick={() => setPreview(null)}>關閉</button>
+            </div>
+          </section>
+        </div>
+      )}
+      {deleteTarget && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => !deleting && setDeleteTarget(null)}>
+          <section
+            className="modal-panel confirm-panel"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="attachment-delete-title"
+            aria-describedby="attachment-delete-description"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <h3 id="attachment-delete-title">確定刪除附件？</h3>
+            <p id="attachment-delete-description">刪除後，這份附件將無法再從系統中查看。</p>
+            <dl className="attachment-meta">
+              <div><dt>帳號</dt><dd>{deleteTarget.account}</dd></div>
+              <div><dt>題目</dt><dd>{deleteTarget.question_id}</dd></div>
+              <div><dt>檔名</dt><dd>{deleteTarget.file_name}</dd></div>
+            </dl>
+            <div className="row attachment-modal-actions">
+              <button className="btn danger" disabled={Boolean(deleting)} onClick={confirmDelete}>
+                {deleting ? "刪除中…" : "確認刪除"}
+              </button>
+              <button className="btn secondary" disabled={Boolean(deleting)} onClick={() => setDeleteTarget(null)}>取消</button>
+            </div>
+          </section>
+        </div>
       )}
     </div>
   );
@@ -1712,25 +1867,72 @@ function Share({ data }) {
   );
 }
 function Logs({ admin, projectId }) {
-  const [rows, setRows] = useState([]),
-    [loading, setLoading] = useState(true);
-  useEffect(() => {
-    api
-      .adminLogs({ token: admin.token, projectId })
-      .then((r) => {
-        setRows(r.data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+  const [filters, setFilters] = useState({ startDate: "", endDate: "" });
+  const [query, setQuery] = useState({ startDate: "", endDate: "" });
+  const [result, setResult] = useState({ rows: [], page: 1, pageSize: 100, total: 0, totalPages: 1 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [downloading, setDownloading] = useState(false);
+  const load = async (page = result.page, pageSize = result.pageSize, nextQuery = query) => {
+    setLoading(true);
+    try {
+      const r = await api.adminLogs({ token: admin.token, projectId, page, pageSize, ...nextQuery });
+      setResult(r.data);
+      setError(null);
+    } catch (e) {
+      setError(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(1, 100, { startDate: "", endDate: "" }); }, [projectId]);
+  const applyFilters = () => {
+    if (filters.startDate && filters.endDate && filters.startDate > filters.endDate) {
+      setError(new Error("開始日期不可晚於結束日期。"));
+      return;
+    }
+    setQuery(filters);
+    load(1, result.pageSize, filters);
+  };
+  const downloadCsv = async () => {
+    setDownloading(true);
+    try {
+      const r = await api.adminExport({ token: admin.token, projectId, kind: "logs", ...query });
+      const bytes = Uint8Array.from(atob(r.data.base64), (c) => c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: r.data.mimeType }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = r.data.fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      window.toast("操作紀錄下載成功", "success");
+    } catch (e) {
+      window.toast(e.message, "error");
+    } finally {
+      setDownloading(false);
+    }
+  };
   return (
     <div className="stack">
-      <h2>操作紀錄</h2>
-      {loading ? (
-        <div className="alert">資料載入中，請稍候…</div>
-      ) : (
-        <SimpleTable rows={rows} />
-      )}
+      <div className="row spread"><h2>操作紀錄</h2><button className="btn secondary" disabled={downloading} onClick={downloadCsv}>{downloading ? "下載中…" : "下載 CSV"}</button></div>
+      <div className="log-toolbar">
+        <div className="field"><label>開始日期</label><input className="input" type="date" value={filters.startDate} onChange={(e) => setFilters({ ...filters, startDate: e.target.value })} /></div>
+        <div className="field"><label>結束日期</label><input className="input" type="date" value={filters.endDate} onChange={(e) => setFilters({ ...filters, endDate: e.target.value })} /></div>
+        <button className="btn primary" onClick={applyFilters}>套用篩選</button>
+        <button className="btn ghost" onClick={() => { const empty = { startDate: "", endDate: "" }; setFilters(empty); setQuery(empty); load(1, result.pageSize, empty); }}>清除</button>
+      </div>
+      <ErrorBox error={error} />
+      <div className="row spread">
+        <span className="muted small">共 {result.total.toLocaleString()} 筆，第 {result.page} / {result.totalPages} 頁</span>
+        <label className="row small">每頁筆數<select className="input log-page-size" value={result.pageSize} onChange={(e) => load(1, Number(e.target.value))}><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
+      </div>
+      {loading ? <div className="alert">資料載入中，請稍候…</div> : <SimpleTable rows={result.rows} />}
+      <div className="row spread log-pagination">
+        <button className="btn secondary" disabled={loading || result.page <= 1} onClick={() => load(result.page - 1)}>上一頁</button>
+        <button className="btn secondary" disabled={loading || result.page >= result.totalPages} onClick={() => load(result.page + 1)}>下一頁</button>
+      </div>
     </div>
   );
 }
@@ -1758,7 +1960,7 @@ function SimpleTable({ rows = [], renderAction }) {
                     : String(r[h] ?? "")}
                 </td>
               ))}
-              {renderAction && <td>{renderAction(r)}</td>}
+              {renderAction && <td>{renderAction(r, i)}</td>}
             </tr>
           ))}
         </tbody>
