@@ -67,8 +67,33 @@ const TYPES = {
   text_highlight: "文字螢光筆題",
   maxdiff: "最大差異法題",
   location: "地圖定位題",
-  terms: "條款同意題",
 };
+const TYPE_GROUPS = [
+  {
+    label: "基礎與文字",
+    types: ["short", "paragraph", "date", "time"],
+  },
+  {
+    label: "標準選擇",
+    types: ["single", "checkbox", "dropdown", "image_choice"],
+  },
+  {
+    label: "評分與矩陣",
+    types: ["scale", "star_rating", "radio_grid", "checkbox_grid", "allocation"],
+  },
+  {
+    label: "視覺與多媒體",
+    types: ["signature", "multi_image", "heatmap", "text_highlight", "location"],
+  },
+  {
+    label: "進階研究與邏輯",
+    types: ["cascading", "ranking", "inventory", "maxdiff", "terms"],
+  },
+  {
+    label: "個人化動態",
+    types: ["linked_multi", "linked_short"],
+  },
+];
 const TABS = [
   "專案設定",
   "使用者設定",
@@ -504,6 +529,8 @@ function Field({ label, children }) {
 }
 
 function Users({ admin, projectId, data, reload, setError }) {
+  const p = data.project, s = data.settings;
+  const [accessMode, setAccessMode] = useState(s.access_mode || 'specified');
   const [fields, setFields] = useState(
       data.fields.filter((f) => !["account", "password"].includes(f.field_key)),
     ),
@@ -518,17 +545,22 @@ function Users({ admin, projectId, data, reload, setError }) {
     [paste, setPaste] = useState("account\tpassword\t姓名\nA001\t0101\t王小明"),
     [mode, setMode] = useState("skip");
   const [saveStatus, setSaveStatus] = useState(""),
-    initialRef = useRef({ fields, labels }),
+    initialRef = useRef({ fields, labels, accessMode }),
     [importing, setImporting] = useState(false);
   const preview = useMemo(() => parsePaste(paste, fields), [paste, fields]);
   useEffect(() => {
     if (
-      JSON.stringify(initialRef.current) === JSON.stringify({ fields, labels })
+      JSON.stringify(initialRef.current) === JSON.stringify({ fields, labels, accessMode })
     )
       return;
     setSaveStatus("儲存中...");
     const t = setTimeout(async () => {
       try {
+        await api.adminUpdateProject({
+          token: admin.token,
+          projectId,
+          project: { accessMode },
+        });
         await api.adminSaveUserFields({
           token: admin.token,
           projectId,
@@ -536,7 +568,7 @@ function Users({ admin, projectId, data, reload, setError }) {
           passwordLabel: labels.password,
           fields,
         });
-        initialRef.current = { fields, labels };
+        initialRef.current = { fields, labels, accessMode };
         setSaveStatus("已自動儲存");
       } catch (x) {
         setError(x);
@@ -544,7 +576,7 @@ function Users({ admin, projectId, data, reload, setError }) {
       }
     }, 1000);
     return () => clearTimeout(t);
-  }, [fields, labels, admin.token, projectId, setError]);
+  }, [fields, labels, accessMode, admin.token, projectId, setError]);
   async function importUsers() {
     if (importing) return;
     setImporting(true);
@@ -566,8 +598,42 @@ function Users({ admin, projectId, data, reload, setError }) {
   return (
     <div className="stack">
       <div className="row spread">
-        <h2>使用者欄位</h2>
-        <div className="row">
+        <h2>問卷填寫權限</h2>
+        <span className="muted">{saveStatus}</span>
+      </div>
+      <div className="row">
+        <label>
+          <input
+            type="radio"
+            name="accessMode"
+            value="specified"
+            checked={accessMode === "specified"}
+            onChange={(e) => setAccessMode(e.target.value)}
+          />{" "}
+          指定使用者 (需登入)
+        </label>
+        <label style={{ marginLeft: "20px" }}>
+          <input
+            type="radio"
+            name="accessMode"
+            value="public"
+            checked={accessMode === "public"}
+            onChange={(e) => setAccessMode(e.target.value)}
+          />{" "}
+          開放所有人填寫 (免登入)
+        </label>
+      </div>
+      <hr />
+      
+      {accessMode === "public" ? (
+        <div className="alert info">
+          此問卷已設為開放填寫，取得連結的任何人皆可直接填寫，無須設定帳號密碼。系統將為每位填寫者自動產生匿名識別碼。
+        </div>
+      ) : (
+        <>
+          <div className="row spread">
+            <h2>使用者欄位</h2>
+            <div className="row">
           <span className="muted">{saveStatus}</span>
           <button
             className="btn secondary"
@@ -686,6 +752,9 @@ function Users({ admin, projectId, data, reload, setError }) {
           {importing ? "處理中…" : "確認匯入"}
         </button>
       </div>
+      </>
+      )}
+      <hr />
       <div className="row spread">
         <h3>使用者名單</h3>
         <ExportButtons
@@ -938,10 +1007,14 @@ function QuestionEditor({
             value={q.type}
             onChange={(e) => onChange({ ...q, type: e.target.value })}
           >
-            {Object.entries(TYPES).map(([k, v]) => (
-              <option value={k} key={k}>
-                {v}
-              </option>
+            {TYPE_GROUPS.map((group) => (
+              <optgroup label={`── ${group.label} ──`} key={group.label}>
+                {group.types.map((k) => (
+                  <option value={k} key={k}>
+                    {TYPES[k]}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         )}
@@ -1672,7 +1745,21 @@ function SurveyLogin({ projectId }) {
   useEffect(() => {
     api
       .respondentProject({ projectId })
-      .then((r) => setMeta(r.data))
+      .then(async (r) => {
+        setMeta(r.data);
+        if (r.data.accessMode === "public") {
+          const params = new URLSearchParams(window.location.hash.split('?')[1] || "");
+          const guestId = params.get("resume") || localStorage.getItem(`survey_guest_${projectId}`);
+          try {
+            const res = await api.respondentGuestLogin({ projectId, guestId });
+            localStorage.setItem(`survey_guest_${projectId}`, res.data.account);
+            userSession.set(projectId, res.data);
+            go(`/survey/${projectId}`);
+          } catch (x) {
+            setError(x);
+          }
+        }
+      })
       .catch(setError);
   }, [projectId]);
   async function login(e) {
@@ -1688,6 +1775,18 @@ function SurveyLogin({ projectId }) {
       setBusy(false);
     }
   }
+  if (meta?.accessMode === "public") {
+    return (
+      <div className="shell">
+        <Header />
+        <div className="card stack">
+          <h2>載入問卷中…</h2>
+          <ErrorBox error={error} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="shell">
       <Header />
@@ -1892,6 +1991,7 @@ function SurveyUI({
     [errors, setErrors] = useState({}),
     [errorSummary, setErrorSummary] = useState([]),
     [busy, setBusy] = useState(false),
+    [showResumeLink, setShowResumeLink] = useState(false),
     [showThankYou, setShowThankYou] = useState(false);
   const sections = [...data.schema.sections].sort((a, b) => a.order - b.order),
     section = history[history.length - 1],
@@ -1987,6 +2087,10 @@ function SurveyUI({
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
+      if (data.project.accessMode === "public") {
+        setShowResumeLink(true);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
       window.toast(r.message || "已暫存，您可以稍後再回來繼續填寫", "success");
       setErrors({});
     } catch (e) {
@@ -2054,6 +2158,31 @@ function SurveyUI({
       {!writable && !showThankYou && (
         <div className="alert error">
           本問卷已截止，目前僅能查看先前填寫內容。
+        </div>
+      )}
+      {showResumeLink && !showThankYou && (
+        <div className="alert info">
+          <strong>資料已暫存！</strong>
+          <p>若您稍後想在其他裝置（如從手機換到電腦）接續填寫，請務必複製下方專屬接續網址。未登入狀態下，跨裝置必須使用此網址才能還原進度：</p>
+          <div className="row" style={{ marginTop: "10px" }}>
+            <input
+              type="text"
+              readOnly
+              className="input"
+              style={{ flex: 1 }}
+              value={`${window.location.origin}${window.location.pathname}?resume=${localStorage.getItem(`survey_guest_${projectId}`)}#/survey/${projectId}`}
+              onClick={(e) => e.target.select()}
+            />
+            <button
+              className="btn outline"
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?resume=${localStorage.getItem(`survey_guest_${projectId}`)}#/survey/${projectId}`);
+                window.toast("網址已複製到剪貼簿", "success");
+              }}
+            >
+              複製網址
+            </button>
+          </div>
         </div>
       )}
       {errorSummary.length > 0 && !showThankYou && (

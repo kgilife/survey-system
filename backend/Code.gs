@@ -32,7 +32,7 @@ var API_ROUTES_ = {
   adminUpload: adminUpload_,
   adminQuestionImageUpload: adminQuestionImageUpload_,
   adminInventory: adminInventory_, adminAdjustInventory: adminAdjustInventory_,
-  respondentProject: respondentProject_, respondentLogin: respondentLogin_, respondentLogout: respondentLogout_,
+  respondentProject: respondentProject_, respondentLogin: respondentLogin_, respondentGuestLogin: respondentGuestLogin_, respondentLogout: respondentLogout_,
   respondentSurvey: respondentSurvey_, respondentSave: respondentSave_, respondentSubmit: respondentSubmit_,
   respondentUpload: respondentUpload_, respondentDeleteAttachment: respondentDeleteAttachment_,
   attachmentDownload: attachmentDownload_
