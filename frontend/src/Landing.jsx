@@ -100,7 +100,7 @@ export default function Landing() {
         <h2>少一點設定，多一點理解。</h2>
         <div className="feature-grid">
           <article className="feature-card warm"><span className="feature-no">01</span><h3>像寫文件一樣設計</h3><p>把題目拖進段落、即時調整順序。基礎題型與進階研究題型放在清楚的分類中，不必猜功能藏在哪。</p><div className="feature-visual lines"><i/><i/><i/></div></article>
-          <article className="feature-card blue"><span className="feature-no">02</span><h3>發佈前，先看見填答者</h3><p>指定名單、開放填答、預約期間與庫存限制各自說清楚。分享連結與 QR Code 集中管理。</p><div className="feature-visual people"><i>林</i><i>王</i><i>陳</i><b>+24</b></div></article>
+          <article className="feature-card blue"><span className="feature-no">02</span><h3>公開蒐集，也能精準指定</h3><p>除了像 Google 表單一樣，讓任何取得連結的人填寫，也能指定填答者並驗證身分，確保調查樣本來自真正需要的對象。</p><div className="feature-visual people"><i>林</i><i>王</i><i>陳</i><b>+24</b></div></article>
           <article className="feature-card ink"><span className="feature-no">03</span><h3>結果不只是一張表</h3><p>即時掌握回收率、答案分布與文字回饋。需要深入分析時，再匯出乾淨資料。</p><div className="feature-visual chart"><i/><i/><i/><i/><i/></div></article>
         </div>
       </section>
