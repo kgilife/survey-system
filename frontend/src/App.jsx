@@ -14,6 +14,7 @@ import {
   AdvancedQuestion,
   ADVANCED_OPTION_TYPES,
 } from "./AdvancedQuestions";
+import Landing from "./Landing";
 
 const toastEvent = new EventTarget();
 window.toast = (message, type = "success") => {
@@ -180,6 +181,7 @@ export default function App() {
   const survey = path.match(/^\/survey\/([^/]+)(\/login)?$/);
   if (survey)
     return <Survey projectId={survey[1]} loginOnly={Boolean(survey[2])} />;
+  if (path === "/") return <Landing />;
   if (path === "/admin/login") return <LoginPage Header={Header} />;
   if (path === "/register") return <RegisterPage Header={Header} />;
   if (path === "/forgot-password") return <ForgotPage Header={Header} />;
@@ -187,7 +189,7 @@ export default function App() {
   if (path === "/profile") return <><ProfilePage Header={Header} /><ToastContainer /></>;
   if (project) return <><ProjectEditor projectId={project[1]} /><ToastContainer /></>;
   if (path.startsWith("/admin")) return <><Dashboard /><ToastContainer /></>;
-  go("/admin/login");
+  go("/");
   return <ToastContainer />;
 }
 
@@ -380,7 +382,7 @@ function ProjectEditor({ projectId }) {
   );
 }
 
-function Settings({ admin, projectId, data, reload, setError }) {
+function Settings({ admin, projectId, data, setData, reload, setError }) {
   const p = data.project,
     s = data.settings,
     [form, setForm] = useState({
@@ -405,6 +407,26 @@ function Settings({ admin, projectId, data, reload, setError }) {
           project: form,
         });
         initialRef.current = form;
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                project: {
+                  ...prev.project,
+                  project_name: form.name,
+                  project_status: form.status,
+                  start_date: form.startDate,
+                  end_date: form.endDate,
+                },
+                settings: {
+                  ...prev.settings,
+                  description: form.description,
+                  completion_message: form.completionMessage,
+                  show_progress: form.showProgress,
+                },
+              }
+            : prev
+        );
         setSaveStatus("已自動儲存");
       } catch (x) {
         setError(x);
@@ -412,7 +434,7 @@ function Settings({ admin, projectId, data, reload, setError }) {
       }
     }, 1000);
     return () => clearTimeout(t);
-  }, [form, admin.token, projectId, setError]);
+  }, [form, admin.token, projectId, setError, setData]);
   async function remove() {
     const text = prompt(
       `刪除會將整個專案資料夾移至垃圾桶。請輸入「${p.project_name}」確認：`,
@@ -529,7 +551,7 @@ function Field({ label, children }) {
   );
 }
 
-function Users({ admin, projectId, data, reload, setError }) {
+function Users({ admin, projectId, data, setData, reload, setError }) {
   const p = data.project, s = data.settings;
   const [accessMode, setAccessMode] = useState(s.access_mode || 'specified');
   const [fields, setFields] = useState(
@@ -570,6 +592,17 @@ function Users({ admin, projectId, data, reload, setError }) {
           fields,
         });
         initialRef.current = { fields, labels, accessMode };
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                settings: {
+                  ...prev.settings,
+                  access_mode: accessMode,
+                },
+              }
+            : prev
+        );
         setSaveStatus("已自動儲存");
       } catch (x) {
         setError(x);
@@ -577,7 +610,7 @@ function Users({ admin, projectId, data, reload, setError }) {
       }
     }, 1000);
     return () => clearTimeout(t);
-  }, [fields, labels, accessMode, admin.token, projectId, setError]);
+  }, [fields, labels, accessMode, admin.token, projectId, setError, setData]);
   async function importUsers() {
     if (importing) return;
     setImporting(true);
