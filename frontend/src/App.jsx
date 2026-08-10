@@ -1907,6 +1907,51 @@ function SurveyUI({
   };
   const nextIndex = getNextSection(),
     isSubmit = nextIndex >= sections.length;
+
+  const validateCurrentPage = () => {
+    const errs = {};
+    const msgs = [];
+    questions.forEach((q) => {
+      if (q.type === "heading" || q.type === "image_note") return;
+      const val = answers[q.id];
+      let isBlank = val === undefined || val === null || val === "";
+      if (Array.isArray(val)) isBlank = val.length === 0;
+      else if (typeof val === "object" && val !== null) isBlank = Object.keys(val).length === 0;
+      
+      if (q.required && isBlank) {
+        errs[q.id] = "此為必填題";
+        msgs.push(`「${q.title}」為必填題`);
+        return;
+      }
+      
+      if (!isBlank && q.validation?.format) {
+        const str = String(val);
+        if (q.validation.format === "email" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(str)) {
+          errs[q.id] = "格式錯誤（請輸入有效的 Email）";
+          msgs.push(`「${q.title}」Email 格式錯誤`);
+        }
+        if (q.validation.format === "phone" && !/^[0-9\-+() ]+$/.test(str)) {
+          errs[q.id] = "格式錯誤（請輸入有效的電話號碼）";
+          msgs.push(`「${q.title}」電話格式錯誤`);
+        }
+        if (q.validation.format === "number" && isNaN(Number(str))) {
+          errs[q.id] = "格式錯誤（請輸入數字）";
+          msgs.push(`「${q.title}」必須為數字`);
+        }
+      }
+    });
+
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      const first = Object.keys(errs)[0];
+      setTimeout(() => document.getElementById("q-" + first)?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+      alert("部分題目尚未完成或格式錯誤：\n\n" + msgs.join("\n"));
+      return false;
+    }
+    setErrors({});
+    return true;
+  };
+
   async function persist(submit) {
     setBusy(true);
     setMessage("");
@@ -1927,15 +1972,26 @@ function SurveyUI({
     } catch (e) {
       if (e.details) {
         const map = {};
-        e.details.forEach((x) => (map[x.questionId] = x.message));
+        const msgs = [];
+        e.details.forEach((x) => {
+          map[x.questionId] = x.message;
+          const qTitle = data.schema.questions.find(q => q.id === x.questionId)?.title || "題目";
+          msgs.push(`「${qTitle}」${x.message}`);
+        });
         setErrors(map);
         const first = e.details[0]?.questionId;
-        document
-          .getElementById("q-" + first)
-          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+        const errQ = data.schema.questions.find(q => q.id === first);
+        if (errQ && errQ.sectionId !== current.id) {
+           const errSecIdx = sections.findIndex(s => s.id === errQ.sectionId);
+           if (errSecIdx >= 0) setHistory(prev => [...prev, errSecIdx]);
+        }
+        setTimeout(() => document.getElementById("q-" + first)?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+        setMessage("部分題目尚未完成或格式錯誤");
+        alert("部分題目尚未完成或格式錯誤：\n\n" + msgs.join("\n"));
+      } else {
+        setMessage(e.message);
+        alert(e.message || "發生錯誤，請檢查是否有未填寫的必填題。");
       }
-      setMessage(e.message);
-      alert(e.message || "發生錯誤，請檢查是否有未填寫的必填題。");
     } finally {
       setBusy(false);
     }
@@ -2013,37 +2069,41 @@ function SurveyUI({
           />
         ))}
         <div className="section-nav">
-          <button
-            className="btn secondary"
-            disabled={history.length <= 1}
-            onClick={() => setHistory(history.slice(0, -1))}
-          >
-            上一頁
-          </button>
+          <div className="row">
+            <button
+              className="btn secondary"
+              disabled={history.length <= 1}
+              onClick={() => setHistory(history.slice(0, -1))}
+            >
+              上一頁
+            </button>
+            <button
+              className="btn secondary"
+              disabled={busy || !writable}
+              onClick={() => persist(false)}
+            >
+              暫存
+            </button>
+          </div>
           {!isSubmit ? (
             <button
               className="btn primary"
-              onClick={() => setHistory([...history, nextIndex])}
+              onClick={() => {
+                if (validateCurrentPage()) setHistory([...history, nextIndex]);
+              }}
             >
               下一頁
             </button>
           ) : (
-            <div className="row">
-              <button
-                className="btn secondary"
-                disabled={busy || !writable}
-                onClick={() => persist(false)}
-              >
-                暫存
-              </button>
-              <button
-                className="btn primary"
-                disabled={busy || !writable}
-                onClick={() => persist(true)}
-              >
-                {adminAccount ? "送出並覆蓋" : "送出問卷"}
-              </button>
-            </div>
+            <button
+              className="btn primary"
+              disabled={busy || !writable}
+              onClick={() => {
+                if (validateCurrentPage()) persist(true);
+              }}
+            >
+              {adminAccount ? "送出並覆蓋" : "送出問卷"}
+            </button>
           )}
         </div>
       </section>
