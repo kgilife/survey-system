@@ -156,9 +156,11 @@ function Header({ admin }) {
         <span className="brand-mark">問</span><span>問卷所<small className="brand-context">管理工作區</small></span>
       </div>
       {admin && (
-        <div className="row">
-          <button className="btn ghost" onClick={() => go("/profile")}>
-            {admin.admin.name}
+        <div className="row account-actions">
+          <button className="account-menu" onClick={() => go("/profile")} aria-label={`開啟 ${admin.admin.name} 的個人資料`} title="個人資料與帳號設定">
+            <span className="account-avatar" aria-hidden="true">{String(admin.admin.name || "帳").trim().charAt(0).toUpperCase()}</span>
+            <span className="account-menu-copy"><strong>{admin.admin.name}</strong><small>個人資料與帳號設定</small></span>
+            <span className="account-chevron" aria-hidden="true">›</span>
           </button>
           <button
             className="btn ghost"
@@ -1647,6 +1649,7 @@ function ExportButtons({ admin, projectId, buttons }) {
 function Attachments({ admin, projectId }) {
   const [rows, setRows] = useState([]),
     [loading, setLoading] = useState(true),
+    [downloadingAll, setDownloadingAll] = useState(false),
     [preview, setPreview] = useState(null),
     [deleting, setDeleting] = useState(null),
     [deleteTarget, setDeleteTarget] = useState(null);
@@ -1725,6 +1728,29 @@ function Attachments({ admin, projectId }) {
     }
   }
 
+  async function downloadAllAttachments() {
+    if (downloadingAll || !rows.length) return;
+    setDownloadingAll(true);
+    try {
+      const response = await api.adminDownloadAllAttachments({ token: admin.token, projectId });
+      const bytes = Uint8Array.from(atob(response.data.base64), (char) => char.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: response.data.mimeType || "application/zip" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = response.data.fileName || `${projectId}_attachments.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      const skipped = Number(response.data.missingCount || 0);
+      window.toast(skipped ? `ZIP 已下載，${skipped} 個遺失檔案未納入` : `已打包下載 ${response.data.fileCount} 個附件`, skipped ? "warning" : "success");
+    } catch (error) {
+      window.toast(error.message || "附件打包下載失敗。", "error");
+    } finally {
+      setDownloadingAll(false);
+    }
+  }
+
   const displayRows = rows.map((r) => ({
     帳號: r.account,
     題目: r.question_id,
@@ -1738,11 +1764,16 @@ function Attachments({ admin, projectId }) {
     <div className="stack">
       <div className="row spread">
         <h2>附件管理</h2>
-        <ExportButtons
-          admin={admin}
-          projectId={projectId}
-          buttons={[{ kind: "attachments", label: "下載附件清單" }]}
-        />
+        <div className="row">
+          <ExportButtons
+            admin={admin}
+            projectId={projectId}
+            buttons={[{ kind: "attachments", label: "下載附件清單" }]}
+          />
+          <button className="btn primary small" disabled={loading || downloadingAll || !rows.length} onClick={downloadAllAttachments}>
+            {downloadingAll ? "打包中…" : "打包下載所有附件"}
+          </button>
+        </div>
       </div>
       {loading ? (
         <div className="alert">資料載入中，請稍候…</div>
@@ -1871,19 +1902,25 @@ function Logs({ admin, projectId }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [downloading, setDownloading] = useState(false);
+  const requestId = useRef(0);
   const load = async (page = result.page, pageSize = result.pageSize, nextQuery = query) => {
+    const currentRequest = ++requestId.current;
     setLoading(true);
     try {
       const r = await api.adminLogs({ token: admin.token, projectId, page, pageSize, ...nextQuery });
+      if (currentRequest !== requestId.current) return;
       setResult(r.data);
       setError(null);
     } catch (e) {
+      if (currentRequest !== requestId.current) return;
       setError(e);
     } finally {
-      setLoading(false);
+      if (currentRequest === requestId.current) setLoading(false);
     }
   };
-  useEffect(() => { load(1, 100, { startDate: "", endDate: "" }); }, [projectId]);
+  useEffect(() => {
+    load(1, 100, { startDate: "", endDate: "" });
+  }, [projectId]);
   const applyFilters = () => {
     if (filters.startDate && filters.endDate && filters.startDate > filters.endDate) {
       setError(new Error("開始日期不可晚於結束日期。"));
@@ -2009,6 +2046,18 @@ function SurveyLogin({ projectId }) {
     } finally {
       setBusy(false);
     }
+  }
+  if (!meta) {
+    return (
+      <div className="shell">
+        <Header />
+        <div className="narrow card stack" aria-busy={!error}>
+          <span className="badge">問卷入口</span>
+          <h1>{error ? "無法載入問卷" : "載入問卷中…"}</h1>
+          <ErrorBox error={error} />
+        </div>
+      </div>
+    );
   }
   if (meta?.accessMode === "public") {
     return (

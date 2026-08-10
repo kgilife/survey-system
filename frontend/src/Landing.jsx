@@ -39,11 +39,11 @@ const GUIDE_GROUPS = [
 
 function MiniBuilder() {
   return <div className="product-preview" aria-label="問卷編輯器示意">
-    <div className="preview-bar"><i/><span/><span/></div>
+    <div className="preview-bar"><div><i/><span/><span/></div><p><b/>所有變更已儲存</p></div>
     <div className="preview-body">
       <aside><b>問卷設計</b><span>填答狀況</span><span>統計分析</span><span>分享設定</span></aside>
       <div className="preview-canvas">
-        <div className="preview-title"><small>顧客體驗調查</small><strong>讓每一個問題都有目的。</strong></div>
+        <div className="preview-title"><small>顧客體驗調查　·　編輯中</small><strong>讓每一個問題都有目的。</strong></div>
         <div className="preview-question"><em>01</em><div><b>這次體驗最打動你的地方？</b><p>選擇一個最符合的答案</p><div className="preview-options"><i/><i/><i/></div></div></div>
         <div className="preview-question muted-card"><em>02</em><div><b>你願意推薦給朋友嗎？</b><div className="preview-scale">0<span/>1<span/>2<span/>3<span/>4<span/>5</div></div></div>
       </div>
@@ -88,8 +88,10 @@ export default function Landing() {
       <section className="landing-hero">
         <div className="eyebrow">SURVEY, MADE THOUGHTFUL</div>
         <h1>問得更好，<br/>答案自然更清楚。</h1>
-        <p>從題目設計、名單管理到統計匯出，一個安靜、清楚的工作空間。複雜的研究方法，也能讓每位同事輕鬆上手。</p>
-        <div className="hero-actions"><button className="pill primary" onClick={() => go("/register")}>免費開始</button><a className="pill link" href="#guide">查看題型指南 <span>→</span></a></div>
+        <p>為研究與營運團隊打造的問卷工作台。從題目設計、受訪名單到統計匯出，讓每個人都能建立可靠、可用的調查。</p>
+        <div className="hero-actions"><button className="pill primary" onClick={() => go("/register")}>免費建立第一份問卷</button><a className="pill link" href="#features">看看如何運作 <span>→</span></a></div>
+        <div className="hero-proof" aria-label="產品特色"><span>免信用卡</span><span>支援匿名填答</span><span>Excel／CSV 匯出</span></div>
+        <p className="preview-label">從設計到回收，集中在同一個工作區</p>
         <MiniBuilder />
       </section>
 

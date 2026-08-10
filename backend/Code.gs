@@ -28,7 +28,7 @@ var API_ROUTES_ = {
   adminUsers: adminUsers_, adminResponses: adminResponses_, adminUpdateResponse: adminUpdateResponse_,
   adminStats: adminStats_, adminLogs: adminLogs_, adminAttachments: adminAttachments_,
   adminAdvancedAnalytics: adminAdvancedAnalytics_,
-  adminDeleteAttachment: adminDeleteAttachment_, adminExport: adminExport_, adminSetFrontendUrl: adminSetFrontendUrl_,
+  adminDeleteAttachment: adminDeleteAttachment_, adminDownloadAllAttachments: adminDownloadAllAttachments_, adminExport: adminExport_, adminSetFrontendUrl: adminSetFrontendUrl_,
   adminUpload: adminUpload_,
   adminQuestionImageUpload: adminQuestionImageUpload_,
   adminInventory: adminInventory_, adminAdjustInventory: adminAdjustInventory_,

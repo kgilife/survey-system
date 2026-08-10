@@ -14,8 +14,9 @@ async function checkUpdate() {
     if (match) {
       const serverTime = match[1];
       if (localTime && localTime !== serverTime) {
-        console.log('New version detected. Reloading...');
-        location.reload(true);
+        // Never force-reload a page while the user is working. A deployment can
+        // briefly serve mismatched HTML/assets and leave the SPA on a white page.
+        console.log('New version detected; it will be used on the next navigation or manual refresh.');
       }
     }
   } catch (e) {}

@@ -64,12 +64,42 @@ function filterLogs_(ss,startDate,endDate){
   return rows_(ss.getSheetByName('專案操作紀錄')).filter(function(r){var time=new Date(r.created_at).getTime();return (start===null||time>=start)&&(end===null||time<=end);}).reverse();
 }
 function adminLogs_(input){
-  var auth=requireAdminProject_(input),page=Math.max(1,Math.floor(Number(input.page)||1)),pageSize=Math.min(100,Math.max(1,Math.floor(Number(input.pageSize)||100))),filtered=filterLogs_(projectDb_(auth.project),input.startDate,input.endDate),total=filtered.length,totalPages=Math.max(1,Math.ceil(total/pageSize));
+  var auth=requireAdminProject_(input),page=Math.max(1,Math.floor(Number(input.page)||1)),pageSize=Math.min(100,Math.max(1,Math.floor(Number(input.pageSize)||100))),ss=projectDb_(auth.project),sheet=ss.getSheetByName('專案操作紀錄');
+  // The normal view is by far the most common path. Read only the requested rows
+  // from the bottom of the append-only sheet instead of materialising the entire
+  // audit history on every page change.
+  if(!input.startDate&&!input.endDate){
+    var total=Math.max(0,sheet.getLastRow()-1),totalPages=Math.max(1,Math.ceil(total/pageSize));
+    page=Math.min(page,totalPages);
+    var newestOffset=(page-1)*pageSize,count=Math.min(pageSize,Math.max(0,total-newestOffset)),items=[];
+    if(count){
+      var firstDataIndex=total-newestOffset-count+1,headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0].map(String);
+      items=sheet.getRange(firstDataIndex+1,1,count,headers.length).getValues().reverse().map(function(row){var item={};headers.forEach(function(h,i){item[h]=cleanCell_(row[i]);});return item;});
+    }
+    return {ok:true,data:{rows:items,page:page,pageSize:pageSize,total:total,totalPages:totalPages}};
+  }
+  var filtered=filterLogs_(ss,input.startDate,input.endDate),total=filtered.length,totalPages=Math.max(1,Math.ceil(total/pageSize));
   page=Math.min(page,totalPages);
   return {ok:true,data:{rows:filtered.slice((page-1)*pageSize,page*pageSize),page:page,pageSize:pageSize,total:total,totalPages:totalPages}};
 }
 function adminAttachments_(input){var auth=requireAdminProject_(input);return {ok:true,data:rows_(projectDb_(auth.project).getSheetByName('附件紀錄')).filter(function(a){return String(a.active)!=='false';})};}
 function adminDeleteAttachment_(input){var auth=requireAdminProject_(input);deactivateAttachment_(projectDb_(auth.project),input.attachmentId);return {ok:true};}
+function adminDownloadAllAttachments_(input){
+  var auth=requireAdminProject_(input),records=adminAttachments_(input).data;
+  if(!records.length)throw apiError_('NOT_FOUND','目前沒有可下載的附件。');
+  var blobs=[],missing=0;
+  records.forEach(function(a,index){
+    try{
+      var blob=DriveApp.getFileById(a.drive_file_id).getBlob(),safeAccount=String(a.account||'未知帳號').replace(/[\\/:*?"<>|]/g,'_'),safeName=String(a.file_name||('attachment_'+(index+1))).replace(/[\\/:*?"<>|]/g,'_');
+      blob.setName(safeAccount+'_'+safeName);
+      blobs.push(blob);
+    }catch(_){missing++;}
+  });
+  if(!blobs.length)throw apiError_('NOT_FOUND','附件檔案已不存在，無法打包下載。');
+  var zip=Utilities.zip(blobs,auth.project.project_id+'_attachments.zip');
+  logProject_(auth.project,'管理員',auth.admin.admin_id,'下載資料','附件管理','all_attachments','打包下載 '+blobs.length+' 個附件');
+  return {ok:true,data:{fileName:zip.getName(),mimeType:'application/zip',base64:Utilities.base64Encode(zip.getBytes()),fileCount:blobs.length,missingCount:missing}};
+}
 function adminExport_(input){var auth=requireAdminProject_(input),ss=projectDb_(auth.project),kind=input.kind||'wide',csv='';if(kind==='long')csv=longCsv_(ss);else if(kind.indexOf('wide')===0)csv=wideCsv_(ss,kind);else if(kind==='unsubmitted')csv=unsubmittedCsv_(ss);else if(kind==='users')csv=usersCsv_(ss);else if(kind==='status')csv=statusCsv_(ss);else if(kind==='attachments')csv=attachmentsCsv_(ss);else if(kind==='stats')csv=statsCsv_(ss,input.dimensions||[]);else if(kind==='logs')csv=logsCsv_(ss,input.startDate,input.endDate);else csv=wideCsv_(ss,'wide');logProject_(auth.project,'管理員',auth.admin.admin_id,'下載資料','匯出',kind,'下載 CSV');return {ok:true,data:{fileName:auth.project.project_id+'_'+kind+'.csv',mimeType:'text/csv;charset=utf-8',base64:Utilities.base64Encode('\uFEFF'+csv, Utilities.Charset.UTF_8)}};}
 function csvCell_(v){var s=typeof v==='string'?v:JSON.stringify(v===undefined?'':v);return '"'+s.replace(/"/g,'""')+'"';}
 function longCsv_(ss){
