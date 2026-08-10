@@ -17,6 +17,8 @@ function routeRequest_(e, method) {
 }
 
 var API_ROUTES_ = {
+  register: register_, forgotPassword: forgotPassword_, resetPassword: resetPassword_,
+  adminProfile: adminProfile_, adminUpdateProfile: adminUpdateProfile_,
   adminLogin: adminLogin_, adminLogout: adminLogout_, adminProjects: adminProjects_,
   adminCreateProject: adminCreateProject_, adminUpdateProject: adminUpdateProject_,
   adminCloneProject: adminCloneProject_, adminArchiveProject: adminArchiveProject_,
