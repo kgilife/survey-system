@@ -88,7 +88,7 @@ export default function Landing() {
       <section className="landing-hero">
         <div className="eyebrow">SURVEY, MADE THOUGHTFUL</div>
         <h1>問得更好，<br/>答案自然更清楚。</h1>
-        <p>為研究與營運團隊打造的問卷工作台。從題目設計、受訪名單到統計匯出，讓每個人都能建立可靠、可用的調查。</p>
+        <p>結合 Google 表單的直覺操作與 SurveyCake 等專業工具的進階題型，而且免費。從 20+ 種問項、名單與填答權限，到即時統計與 Excel／CSV 匯出，一個地方就能完成。</p>
         <div className="hero-actions"><button className="pill primary" onClick={() => go("/register")}>免費建立第一份問卷</button><a className="pill link" href="#features">看看如何運作 <span>→</span></a></div>
         <div className="hero-proof" aria-label="產品特色"><span>免信用卡</span><span>支援匿名填答</span><span>Excel／CSV 匯出</span></div>
         <p className="preview-label">從設計到回收，集中在同一個工作區</p>
