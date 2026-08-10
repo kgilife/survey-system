@@ -67,6 +67,7 @@ const TYPES = {
   text_highlight: "文字螢光筆題",
   maxdiff: "最大差異法題",
   location: "地圖定位題",
+  terms: "條款同意題",
 };
 const TYPE_GROUPS = [
   {
@@ -1396,6 +1397,7 @@ function Responses({ admin, projectId, data }) {
       multi_image: "檔案/圖片上傳",
       linked_multi: "連結型多選",
       linked_short: "連結型簡答",
+      terms: "條款同意",
     };
     const q = data.schema.questions.find((x) => x.id === r.question_id) || {
       title: r.question_id,
@@ -2034,6 +2036,7 @@ function SurveyUI({
       const val = answers[q.id];
       let isBlank = val === undefined || val === null || val === "";
       if (Array.isArray(val)) isBlank = val.length === 0;
+      else if (q.type === "terms") isBlank = !val || val.accepted !== true;
       else if (typeof val === "object" && val !== null) isBlank = Object.keys(val).length === 0;
       
       if (q.required && isBlank) {
