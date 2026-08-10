@@ -15,6 +15,33 @@ import {
   ADVANCED_OPTION_TYPES,
 } from "./AdvancedQuestions";
 
+const toastEvent = new EventTarget();
+window.toast = (message, type = "success") => {
+  toastEvent.dispatchEvent(new CustomEvent("toast", { detail: { message, type } }));
+};
+
+export function ToastContainer() {
+  const [toasts, setToasts] = useState([]);
+  useEffect(() => {
+    const handler = (e) => {
+      const id = Date.now() + Math.random();
+      setToasts((t) => [...t, { id, ...e.detail }]);
+      setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3000);
+    };
+    toastEvent.addEventListener("toast", handler);
+    return () => toastEvent.removeEventListener("toast", handler);
+  }, []);
+  return (
+    <div className="toast-container">
+      {toasts.map((t) => (
+        <div key={t.id} className={`toast toast-${t.type}`}>
+          {t.message}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const TYPES = {
   short: "簡答",
   paragraph: "詳答",
@@ -130,12 +157,12 @@ export default function App() {
   if (path === "/admin/login") return <LoginPage Header={Header} />;
   if (path === "/register") return <RegisterPage Header={Header} />;
   if (path === "/forgot-password") return <ForgotPage Header={Header} />;
-  if (path.startsWith("/reset-password")) return <ResetPage Header={Header} />;
-  if (path === "/profile") return <ProfilePage Header={Header} />;
-  if (project) return <ProjectEditor projectId={project[1]} />;
-  if (path.startsWith("/admin")) return <Dashboard />;
+  if (path.startsWith("/reset-password")) return <><ResetPage Header={Header} /><ToastContainer /></>;
+  if (path === "/profile") return <><ProfilePage Header={Header} /><ToastContainer /></>;
+  if (project) return <><ProjectEditor projectId={project[1]} /><ToastContainer /></>;
+  if (path.startsWith("/admin")) return <><Dashboard /><ToastContainer /></>;
   go("/admin/login");
-  return null;
+  return <ToastContainer />;
 }
 
 function useAdmin() {
@@ -529,7 +556,7 @@ function Users({ admin, projectId, data, reload, setError }) {
         duplicateMode: mode,
       });
       await reload();
-      alert("匯入完成");
+      window.toast("匯入完成", "success");
     } catch (x) {
       setError(x);
     } finally {
@@ -827,7 +854,7 @@ function Builder({ admin, projectId, data, setData, setError }) {
               </button>
             )}
           </div>
-          <div className="section-items stack" style={{ display: collapsedSections[s.id] ? "none" : "flex" }}>
+          <div className="section-items stack" style={{ display: collapsedSections[s.id] ? "none" : "grid" }}>
             {schema.questions.filter((q) => q.sectionId === s.id).map((q, localIndex, sectionQuestions) => (
               <div key={q.id} className={`question-drop ${dragging?.id === q.id ? "dragging" : ""}`} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (dragging?.type === "question") moveQuestion(dragging.id, s.id, q.id); setDragging(null); }}>
                 <QuestionEditor q={q} sections={schema.sections} ctx={{ admin, projectId, data, setError }}
@@ -1446,7 +1473,7 @@ function InventoryAdmin({ admin, projectId, data }) {
     const raw = prompt("調整數量（正數增加、負數減少）", "1");
     if (raw === null) return;
     const delta = Number(raw);
-    if (!Number.isInteger(delta) || delta === 0) return alert("請輸入非零整數。");
+    if (!Number.isInteger(delta) || delta === 0) { window.toast("請輸入非零整數。", "error"); return; }
     setBusy(true);
     try {
       await api.adminAdjustInventory({ token: admin.token, projectId, questionId: row.question_id, optionValue: row.option_value, delta });
@@ -1490,8 +1517,9 @@ function ExportButtons({ admin, projectId, buttons }) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      window.toast("下載成功", "success");
     } catch (x) {
-      alert(x.message);
+      window.toast(x.message, "error");
     } finally {
       setDownloading(null);
     }
@@ -1645,8 +1673,8 @@ function SimpleTable({ rows = [], renderAction }) {
 
 function Survey({ projectId, loginOnly }) {
   const session = userSession.get(projectId);
-  if (loginOnly || !session) return <SurveyLogin projectId={projectId} />;
-  return <SurveyForm projectId={projectId} session={session} />;
+  if (loginOnly || !session) return <><SurveyLogin projectId={projectId} /><ToastContainer /></>;
+  return <><SurveyForm projectId={projectId} session={session} /><ToastContainer /></>;
 }
 function SurveyLogin({ projectId }) {
   const [meta, setMeta] = useState(null),
@@ -1874,8 +1902,9 @@ function SurveyUI({
   const [answers, setAnswers] = useState(initialAnswers || {}),
     [history, setHistory] = useState([0]),
     [errors, setErrors] = useState({}),
-    [message, setMessage] = useState(""),
-    [busy, setBusy] = useState(false);
+    [errorSummary, setErrorSummary] = useState([]),
+    [busy, setBusy] = useState(false),
+    [showThankYou, setShowThankYou] = useState(false);
   const sections = [...data.schema.sections].sort((a, b) => a.order - b.order),
     section = history[history.length - 1],
     current = sections[section],
@@ -1884,6 +1913,7 @@ function SurveyUI({
   const change = (id, v) => {
     setAnswers({ ...answers, [id]: v });
     setErrors({ ...errors, [id]: undefined });
+    setErrorSummary([]);
   };
   const getNextSection = () => {
     let jump = "";
@@ -1943,18 +1973,20 @@ function SurveyUI({
 
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
+      setErrorSummary(msgs);
       const first = Object.keys(errs)[0];
       setTimeout(() => document.getElementById("q-" + first)?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
-      alert("部分題目尚未完成或格式錯誤：\n\n" + msgs.join("\n"));
+      window.toast("部分題目尚未完成或格式錯誤", "error");
       return false;
     }
     setErrors({});
+    setErrorSummary([]);
     return true;
   };
 
   async function persist(submit) {
     setBusy(true);
-    setMessage("");
+    setErrorSummary([]);
     try {
       const r = await onSave(answers, submit, data.revision);
       setData({
@@ -1962,13 +1994,13 @@ function SurveyUI({
         revision: r.data?.revision || "",
         status: r.data?.status || data.status,
       });
-      const msg = submit
-        ? `已送出｜${data.project.completionMessage}`
-        : r.message || "已儲存";
-      setMessage(msg);
-      alert(msg);
+      if (submit) {
+        setShowThankYou(true);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      window.toast(r.message || "已暫存，您可以稍後再回來繼續填寫", "success");
       setErrors({});
-      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       if (e.details) {
         const map = {};
@@ -1986,11 +2018,10 @@ function SurveyUI({
            if (errSecIdx >= 0) setHistory(prev => [...prev, errSecIdx]);
         }
         setTimeout(() => document.getElementById("q-" + first)?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
-        setMessage("部分題目尚未完成或格式錯誤");
-        alert("部分題目尚未完成或格式錯誤：\n\n" + msgs.join("\n"));
+        setErrorSummary(msgs);
+        window.toast("部分題目尚未完成或格式錯誤", "error");
       } else {
-        setMessage(e.message);
-        alert(e.message || "發生錯誤，請檢查是否有未填寫的必填題。");
+        window.toast(e.message || "發生錯誤，請檢查是否有未填寫的必填題。", "error");
       }
     } finally {
       setBusy(false);
@@ -2032,21 +2063,34 @@ function SurveyUI({
           </div>
         )}
       </section>
-      {!writable && (
+      {!writable && !showThankYou && (
         <div className="alert error">
           本問卷已截止，目前僅能查看先前填寫內容。
         </div>
       )}
-      {message && (
-        <div
-          className={
-            "alert " + (message.startsWith("已") ? "success" : "error")
-          }
-        >
-          {message}
+      {errorSummary.length > 0 && !showThankYou && (
+        <div className="alert error error-banner">
+          <strong>請修正以下錯誤：</strong>
+          <ul>
+            {errorSummary.map((msg, idx) => (
+              <li key={idx}>{msg}</li>
+            ))}
+          </ul>
         </div>
       )}
-      <section className="card stack">
+      {showThankYou ? (
+        <section className="card stack thank-you-screen fade-in">
+          <div className="thank-you-icon">✓</div>
+          <h2>感謝您的填寫！</h2>
+          <p>{data.project.completionMessage || "您的問卷已經成功送出，我們會盡快處理您的回覆。"}</p>
+          {adminAccount && (
+            <button className="btn secondary" onClick={onLogout} style={{ alignSelf: "center", marginTop: 20 }}>
+              返回管理介面
+            </button>
+          )}
+        </section>
+      ) : (
+        <section className="card stack">
         <div>
           <span className="small muted">
             第 {section + 1}／{sections.length} 區
@@ -2107,8 +2151,9 @@ function SurveyUI({
           )}
         </div>
       </section>
-    </div>
-  );
+    )}
+  </div>
+);
 }
 function Question({
   q,
@@ -2407,8 +2452,8 @@ function Signature({
     try {
       const base64 = ref.current.toDataURL("image/png").split(",")[1], r = await uploadFn({ type: "image/png", base64 }, questionId, "signature");
       onChange(r.data);
-      alert("簽名上傳成功！請記得點擊「暫存」或「送出」來儲存整份問卷。");
-    } catch (error) { alert(error.message); }
+      window.toast("簽名上傳成功！請記得點擊「暫存」或「送出」來儲存整份問卷。", "success");
+    } catch (error) { window.toast(error.message, "error"); }
     finally { setUploading(false); }
   }
   return (
@@ -2482,15 +2527,25 @@ function Images({
   questionId,
   max,
 }) {
-  const files = Array.isArray(value) ? value : [], [uploading, setUploading] = useState("");
+  const vals = Array.isArray(value) ? value : [], [uploading, setUploading] = useState("");
   async function pick(e) {
-    const selected = [...e.target.files];
-    if (files.length + selected.length > max)
-      return alert(`最多 ${max} 個檔案`);
-    let currentFiles = [...files];
-    try { for (let index=0; index<selected.length; index++) { const file=selected[index];
-      setUploading(`正在上傳 ${index + 1} / ${selected.length}：${file.name}`);
-      if (file.size > 5 * 1024 * 1024) return alert(`${file.name} 超過 5 MB`);
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    if (files.length + vals.length > max)
+      return window.toast(`最多 ${max} 個檔案`, "error");
+    for (const file of files) {
+      if (
+        !["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(
+          file.type,
+        )
+      )
+        return window.toast("僅支援 JPG, PNG, WEBP, PDF 格式", "error");
+      if (file.size > 5 * 1024 * 1024) return window.toast(`${file.name} 超過 5 MB`, "error");
+    }
+    let currentFiles = [...vals];
+    const uploaded = [];
+    try { for (let index=0; index<files.length; index++) { const file=files[index];
+      setUploading(`正在上傳 ${index + 1} / ${files.length}：${file.name}`);
       const base64 = await new Promise((resolve, reject) => {
           const r = new FileReader();
           r.onload = () => resolve(String(r.result).split(",")[1]);
@@ -2503,9 +2558,10 @@ function Images({
           "file",
           currentFiles.length + 1,
         );
-      currentFiles = [...currentFiles, res.data];
-      onChange(currentFiles);
-    }} catch(error) { alert(error.message); } finally { setUploading(""); e.target.value=""; }
+      uploaded.push(res.data);
+    }
+    onChange([...vals, ...uploaded]);
+    } catch(error) { window.toast(error.message, "error"); } finally { setUploading(""); e.target.value=""; }
   }
   return (
     <div className="stack">

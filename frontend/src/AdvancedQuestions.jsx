@@ -30,7 +30,7 @@ function ImageUploadButton({ uploadImage, onUploaded, small = false }) {
   const [busy, setBusy] = useState(false);
   return <label className={`btn secondary${small ? " small" : ""}${busy ? " disabled" : ""}`}>
     {busy ? "上傳中，請稍候…" : "直接上傳"}
-    <input hidden disabled={busy} type="file" accept="image/jpeg,image/png,image/webp" onChange={async(e) => {const file=e.target.files?.[0];if(!file)return;setBusy(true);try{const url=await uploadImage?.(file);if(url)onUploaded(url);}catch(x){alert(x.message);}finally{setBusy(false);e.target.value="";}}} />
+    <input hidden disabled={busy} type="file" accept="image/jpeg,image/png,image/webp" onChange={async(e) => {const file=e.target.files?.[0];if(!file)return;setBusy(true);try{const url=await uploadImage?.(file);if(url)onUploaded(url);}catch(x){window.toast(x.message, "error");}finally{setBusy(false);e.target.value="";}}} />
   </label>;
 }
 export function AdvancedEditor({ q, onChange, uploadImage }) {
@@ -547,7 +547,7 @@ function Location({ value, onChange, disabled }) {
     navigator.geolocation?.getCurrentPosition(
       (p) =>
         onChange({ ...v, lat: p.coords.latitude, lng: p.coords.longitude }),
-      () => alert("無法取得定位，請確認瀏覽器權限。"),
+      () => window.toast("無法取得定位，請確認瀏覽器權限。", "error"),
     );
   }
   async function searchAddress() {
@@ -556,9 +556,9 @@ function Location({ value, onChange, disabled }) {
     try {
       const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(v.address)}`, { headers: { "Accept-Language": "zh-TW" } });
       const list = await response.json();
-      if (!list[0]) return alert("找不到此地址，請補充縣市或路名。");
+      if (!list[0]) return window.toast("找不到此地址，請補充縣市或路名。", "error");
       onChange({ ...v, lat: Number(list[0].lat), lng: Number(list[0].lon), address: list[0].display_name });
-    } catch { alert("地址搜尋暫時無法使用。"); } finally { setSearching(false); }
+    } catch { window.toast("地址搜尋暫時無法使用。", "error"); } finally { setSearching(false); }
   }
   return (
     <div className="stack">
