@@ -6,11 +6,19 @@ import {
   isEmail,
   normalizePoint,
   validMaxDiff,
+  maxDiffSets,
+  maxDiffUtilities,
 } from "../src/questionLogic.js";
 
 test("Email 格式檢查", () => {
   assert.equal(isEmail("user@example.com"), true);
   assert.equal(isEmail("kgi"), false);
+});
+test("MaxDiff 產生多輪交叉題組且可計算相對效用", () => {
+  const sets = maxDiffSets([{value:"a"},{value:"b"},{value:"c"},{value:"d"}], 3, 4);
+  assert.equal(sets.length, 4);
+  assert.ok(sets.every((set) => set.length === 3));
+  assert.deepEqual(maxDiffUtilities([[{set:["a","b"],best:"a",worst:"b"}]], ["a","b"]), {a:1,b:-1});
 });
 test("總計題正確加總", () =>
   assert.equal(allocationTotal({ a: 40, b: 35, c: 25 }), 100));

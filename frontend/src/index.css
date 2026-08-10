@@ -405,10 +405,12 @@ th {
 }
 .ranking li {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: auto 1fr auto auto;
   align-items: center;
   gap: 10px;
 }
+.ranking li[draggable="true"] { cursor: grab; }
+.drag-handle { color: #8290a5; letter-spacing: -3px; }
 .ranking button {
   border: 0;
   background: #e9eef5;
@@ -465,6 +467,10 @@ th {
 .highlight-text {
   user-select: text;
 }
+.highlight-text mark { padding: 1px 0; }
+.highlight-text mark.positive { background: #b9f6ca; }
+.highlight-text mark.negative { background: #ffcdd2; }
+.analytics-heatmap > i { width: 28px; height: 28px; border: 0; background: rgba(255, 30, 0, .18); box-shadow: 0 0 18px 10px rgba(255, 90, 0, .28); }
 .terms-box {
   max-height: 220px;
   overflow: auto;
@@ -475,3 +481,6 @@ th {
   border: 1px solid var(--line);
   border-radius: 12px;
 }
+.map-picker { position: relative; min-height: 280px; cursor: crosshair; overflow: hidden; border-radius: 12px; }
+.map-picker .map-frame { pointer-events: none; }
+.map-pin { position:absolute; left:50%; top:50%; transform:translate(-50%,-100%); border:0; background:transparent; color:#d93025; font-size:32px; cursor:grab; text-shadow:0 1px 2px #fff; }

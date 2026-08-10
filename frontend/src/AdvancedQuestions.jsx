@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { allocationTotal, normalizePoint } from "./questionLogic";
+import { allocationTotal, maxDiffSets, normalizePoint } from "./questionLogic";
 export { ADVANCED_OPTION_TYPES } from "./questionLogic";
 
 const Field = ({ label, children }) => (
@@ -10,7 +10,7 @@ const Field = ({ label, children }) => (
 );
 const number = (v, fallback = 0) =>
   Number.isFinite(Number(v)) ? Number(v) : fallback;
-export function AdvancedEditor({ q, onChange }) {
+export function AdvancedEditor({ q, onChange, uploadImage }) {
   const cfg = q.config || {},
     setCfg = (next) => onChange({ ...q, config: { ...cfg, ...next } });
   if (q.type === "star_rating")
@@ -74,11 +74,11 @@ export function AdvancedEditor({ q, onChange }) {
   if (q.type === "heatmap")
     return (
       <Field label="底圖網址">
-        <input
+        <div className="row"><input
           className="input"
           value={cfg.imageUrl || ""}
           onChange={(e) => setCfg({ imageUrl: e.target.value })}
-        />
+        /><label className="btn secondary">直接上傳<input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={async(e) => {try{const url=await uploadImage?.(e.target.files[0]);if(url)setCfg({imageUrl:url});}catch(x){alert(x.message);}}} /></label></div>
       </Field>
     );
   if (q.type === "text_highlight")
@@ -125,14 +125,15 @@ export function AdvancedEditor({ q, onChange }) {
     );
   if (q.type === "maxdiff")
     return (
-      <p className="muted small">
-        填答者會從此組選項各選一個「最偏好」與「最不偏好」。
-      </p>
+      <div className="row">
+        <Field label="每輪顯示選項"><input type="number" min="2" className="input" value={cfg.setSize || 4} onChange={(e) => setCfg({setSize:number(e.target.value,4)})} /></Field>
+        <Field label="交叉題組輪數"><input type="number" min="1" className="input" value={cfg.rounds || Math.max(1,q.options.length)} onChange={(e) => setCfg({rounds:number(e.target.value,1)})} /></Field>
+      </div>
     );
   return null;
 }
 
-export function AdvancedOptionFields({ q, index, onChange }) {
+export function AdvancedOptionFields({ q, index, onChange, uploadImage }) {
   const o = q.options[index],
     update = (patch) =>
       onChange({
@@ -144,13 +145,13 @@ export function AdvancedOptionFields({ q, index, onChange }) {
   return (
     <>
       {q.type === "image_choice" && (
-        <input
+        <><input
           className="input"
           style={{ flex: 1 }}
           placeholder="圖片網址"
           value={o.imageUrl || ""}
           onChange={(e) => update({ imageUrl: e.target.value })}
-        />
+        /><label className="btn secondary small">上傳<input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={async(e) => {try{const url=await uploadImage?.(e.target.files[0]);if(url)update({imageUrl:url});}catch(x){alert(x.message);}}} /></label></>
       )}{" "}
       {q.type === "inventory" && (
         <input
@@ -278,7 +279,8 @@ function Ranking({ q, value, onChange, disabled }) {
       {ranked.map((id, i) => {
         const o = q.options.find((x) => x.value === id) || { label: id };
         return (
-          <li key={id}>
+          <li key={id} draggable={!disabled} onDragStart={(e) => e.dataTransfer.setData("text/plain", String(i))} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const from=Number(e.dataTransfer.getData("text/plain")); if(!Number.isInteger(from)||from===i)return; const a=[...ranked], item=a.splice(from,1)[0]; a.splice(i,0,item); onChange(a); }}>
+            <span className="drag-handle" aria-hidden="true">⋮⋮</span>
             <span>{o.label}</span>
             <div>
               <button
@@ -427,6 +429,15 @@ function Highlight({ q, value, onChange, disabled }) {
     ]);
     sel.removeAllRanges();
   }
+  const pieces = [];
+  let cursor = 0;
+  [...ranges].filter((r) => r.start >= 0 && r.end > r.start && r.end <= text.length).sort((a,b) => a.start-b.start).forEach((r, i) => {
+    if (r.start < cursor) return;
+    if (r.start > cursor) pieces.push(text.slice(cursor, r.start));
+    pieces.push(<mark key={i} className={r.sentiment === "negative" ? "negative" : "positive"}>{text.slice(r.start,r.end)}</mark>);
+    cursor = r.end;
+  });
+  if (cursor < text.length) pieces.push(text.slice(cursor));
   return (
     <div className="stack">
       <div className="row">
@@ -453,16 +464,19 @@ function Highlight({ q, value, onChange, disabled }) {
         </button>
       </div>
       <div ref={ref} className="highlight-text" onMouseUp={mark}>
-        {text}
+        {pieces}
       </div>
       <div className="small muted">已標記 {ranges.length} 段文字</div>
     </div>
   );
 }
 function MaxDiff({ q, value, onChange, disabled }) {
-  const v = value || {};
+  const sets = maxDiffSets(q.options, q.config?.setSize, q.config?.rounds);
+  const values = Array.isArray(value) ? value : [];
   return (
-    <div className="table-wrap">
+    <div className="stack maxdiff-rounds">
+      {sets.map((set, round) => { const v=values[round]||{set}; const change=(patch) => onChange(sets.map((s,i) => i===round?{...(values[i]||{set:s}),...patch}:{...(values[i]||{}),set:s})); return <div className="table-wrap" key={round}>
+      <h4>第 {round + 1} 輪／共 {sets.length} 輪</h4>
       <table>
         <thead>
           <tr>
@@ -472,7 +486,7 @@ function MaxDiff({ q, value, onChange, disabled }) {
           </tr>
         </thead>
         <tbody>
-          {q.options.map((o) => (
+          {set.map((id) => q.options.find((o) => o.value === id)).filter(Boolean).map((o) => (
             <tr key={o.value}>
               <td>
                 <input
@@ -480,7 +494,7 @@ function MaxDiff({ q, value, onChange, disabled }) {
                   name={q.id + "best"}
                   disabled={disabled || v.worst === o.value}
                   checked={v.best === o.value}
-                  onChange={() => onChange({ ...v, best: o.value })}
+                  onChange={() => change({ best: o.value })}
                 />
               </td>
               <td>{o.label}</td>
@@ -490,18 +504,20 @@ function MaxDiff({ q, value, onChange, disabled }) {
                   name={q.id + "worst"}
                   disabled={disabled || v.best === o.value}
                   checked={v.worst === o.value}
-                  onChange={() => onChange({ ...v, worst: o.value })}
+                  onChange={() => change({ worst: o.value })}
                 />
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      </div>; })}
     </div>
   );
 }
 function Location({ value, onChange, disabled }) {
   const v = value || {};
+  const [searching, setSearching] = useState(false);
   function locate() {
     navigator.geolocation?.getCurrentPosition(
       (p) =>
@@ -509,15 +525,25 @@ function Location({ value, onChange, disabled }) {
       () => alert("無法取得定位，請確認瀏覽器權限。"),
     );
   }
+  async function searchAddress() {
+    if (!v.address) return;
+    setSearching(true);
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(v.address)}`, { headers: { "Accept-Language": "zh-TW" } });
+      const list = await response.json();
+      if (!list[0]) return alert("找不到此地址，請補充縣市或路名。");
+      onChange({ ...v, lat: Number(list[0].lat), lng: Number(list[0].lon), address: list[0].display_name });
+    } catch { alert("地址搜尋暫時無法使用。"); } finally { setSearching(false); }
+  }
   return (
     <div className="stack">
       <Field label="地址">
-        <input
+        <div className="row"><input
           className="input"
           disabled={disabled}
           value={v.address || ""}
           onChange={(e) => onChange({ ...v, address: e.target.value })}
-        />
+        /><button type="button" className="btn secondary" disabled={disabled || searching} onClick={searchAddress}>{searching ? "搜尋中…" : "搜尋地址"}</button></div>
       </Field>
       <div className="row">
         <input
@@ -549,12 +575,11 @@ function Location({ value, onChange, disabled }) {
       </div>
       {v.lat && v.lng && (
         <>
-          <iframe
-            title="定位地圖"
-            className="map-frame"
-            loading="lazy"
-            src={`https://maps.google.com/maps?q=${encodeURIComponent(v.lat + "," + v.lng)}&z=16&output=embed`}
-          />
+          <div className="map-picker" onPointerDown={(e) => { if(disabled)return; const box=e.currentTarget.getBoundingClientRect(),dx=(e.clientX-(box.left+box.width/2))/box.width,dy=(e.clientY-(box.top+box.height/2))/box.height; onChange({...v,lat:Number(v.lat)-dy*.02,lng:Number(v.lng)+dx*.02}); }}>
+            <iframe title="定位地圖" className="map-frame" loading="lazy" src={`https://maps.google.com/maps?q=${encodeURIComponent(v.lat + "," + v.lng)}&z=16&output=embed`} />
+            <button type="button" className="map-pin" disabled={disabled} aria-label="拖曳圖釘調整位置">●</button>
+          </div>
+          <span className="small muted">點擊地圖或拖曳圖釘可微調位置</span>
           <a
             target="_blank"
             rel="noreferrer"

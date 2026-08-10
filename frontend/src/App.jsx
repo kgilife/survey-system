@@ -49,6 +49,7 @@ const TABS = [
   "填寫狀況",
   "回答資料",
   "統計分析",
+  "庫存管理",
   "附件管理",
   "分享設定",
   "操作紀錄",
@@ -322,6 +323,7 @@ function ProjectEditor({ projectId }) {
               {tab === "填寫狀況" && <Status {...ctx} />}{" "}
               {tab === "回答資料" && <Responses {...ctx} />}{" "}
               {tab === "統計分析" && <Stats {...ctx} />}{" "}
+              {tab === "庫存管理" && <InventoryAdmin {...ctx} />}{" "}
               {tab === "附件管理" && <Attachments {...ctx} />}{" "}
               {tab === "分享設定" && <Share {...ctx} />}{" "}
               {tab === "操作紀錄" && <Logs {...ctx} />}
@@ -910,6 +912,12 @@ function QuestionEditor({
   ctx,
 }) {
   const [showLinked, setShowLinked] = useState(false);
+  const uploadQuestionImage = async (file) => {
+    if (!file) return "";
+    const base64 = await new Promise((resolve, reject) => { const reader=new FileReader(); reader.onerror=reject; reader.onload=() => resolve(String(reader.result).split(",")[1]); reader.readAsDataURL(file); });
+    const r = await api.adminQuestionImageUpload({token:ctx.admin.token,projectId:ctx.projectId,questionId:q.id,mimeType:file.type,base64});
+    return r.data.url;
+  };
   const optionType = [
     "single",
     "checkbox",
@@ -1003,7 +1011,7 @@ function QuestionEditor({
                   })
                 }
               />
-              <AdvancedOptionFields q={q} index={i} onChange={onChange} />
+              <AdvancedOptionFields q={q} index={i} onChange={onChange} uploadImage={uploadQuestionImage} />
               {jumpable && (
                 <select
                   className="input"
@@ -1058,7 +1066,7 @@ function QuestionEditor({
           </button>
         </div>
       )}
-      <AdvancedEditor q={q} onChange={onChange} />
+      <AdvancedEditor q={q} onChange={onChange} uploadImage={uploadQuestionImage} />
       {q.type === "linked_multi" && (
         <div className="stack">
           <button
@@ -1374,6 +1382,7 @@ function Responses({ admin, projectId, data }) {
 function Stats({ admin, projectId, data }) {
   const [dimensions, setDimensions] = useState([]),
     [stats, setStats] = useState({ summary: data.project.stats, groups: [] }),
+    [advanced, setAdvanced] = useState({ heatmaps: [], maxdiff: [] }),
     [loading, setLoading] = useState(false);
   const allowed = data.fields.filter(
     (f) =>
@@ -1398,6 +1407,7 @@ function Stats({ admin, projectId, data }) {
       setLoading(false);
     }
   }
+  useEffect(() => { api.adminAdvancedAnalytics({token:admin.token,projectId}).then((r) => setAdvanced(r.data)); }, [projectId]);
   return (
     <div className="stack">
       <div className="row spread">
@@ -1447,9 +1457,47 @@ function Stats({ admin, projectId, data }) {
           )}
         />
       )}
+      {advanced.heatmaps.map((h) => <div className="stack" key={h.questionId}><h3>{h.title}－多人熱點圖</h3><p className="muted">{h.responses} 份已送出回答，共 {h.points.length} 個熱點</p><div className="heatmap analytics-heatmap">{h.imageUrl && <img src={h.imageUrl} alt={h.title} />}{h.points.map((p,i) => <i key={i} style={{left:`${p.x*100}%`,top:`${p.y*100}%`}} />)}</div></div>)}
+      {advanced.maxdiff.map((m) => <div className="stack" key={m.questionId}><h3>{m.title}－MaxDiff 相對效用</h3><SimpleTable rows={m.utilities.map((u) => ({選項:u.label, 最偏好次數:u.best, 最不偏好次數:u.worst, 顯示次數:u.shown, 相對效用:u.utility}))} /></div>)}
     </div>
   );
 }
+function InventoryAdmin({ admin, projectId, data }) {
+  const [state, setState] = useState({ stock: [], transactions: [] });
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const labels = Object.fromEntries(
+    data.schema.questions.flatMap((q) =>
+      (q.options || []).map((o) => [`${q.id}|${o.value}`, `${q.title}／${o.label}`]),
+    ),
+  );
+  const load = async () => {
+    try {
+      setState((await api.adminInventory({ token: admin.token, projectId })).data);
+      setError(null);
+    } catch (e) { setError(e); }
+  };
+  useEffect(() => { load(); }, [projectId]);
+  async function adjust(row) {
+    const raw = prompt("調整數量（正數增加、負數減少）", "1");
+    if (raw === null) return;
+    const delta = Number(raw);
+    if (!Number.isInteger(delta) || delta === 0) return alert("請輸入非零整數。");
+    setBusy(true);
+    try {
+      await api.adminAdjustInventory({ token: admin.token, projectId, questionId: row.question_id, optionValue: row.option_value, delta });
+      await load();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  }
+  return <div className="stack">
+    <div className="row spread"><div><h2>庫存管理</h2><p className="muted">手動調整會留下完整異動紀錄；已送出回答改回暫存時會自動歸還。</p></div><button className="btn secondary" onClick={load}>重新整理</button></div>
+    <ErrorBox error={error} />
+    <SimpleTable rows={state.stock.map((r) => ({...r, 題目選項: labels[`${r.question_id}|${r.option_value}`] || `${r.question_id}／${r.option_value}`, 初始庫存: r.initial_stock, 剩餘庫存: r.remaining_stock}))} renderAction={(r) => <button className="btn secondary small" disabled={busy} onClick={() => adjust(r)}>調整</button>} />
+    <h3>最近 1,000 筆異動</h3>
+    <SimpleTable rows={state.transactions.map((r) => ({時間: fmt(r.created_at), 題目選項: labels[`${r.question_id}|${r.option_value}`] || `${r.question_id}／${r.option_value}`, 帳號或操作者: r.account, 原庫存: r.before_quantity, 異動: r.quantity_delta, 新庫存: r.after_quantity, 原因: r.action}))} />
+  </div>;
+}
+
 function ExportButtons({ admin, projectId, buttons }) {
   const [downloading, setDownloading] = useState(null);
   async function download(kind, dims) {
