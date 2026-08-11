@@ -108,8 +108,10 @@ const TABS = [
   "分享設定",
   "操作紀錄",
 ];
+let routeNavigationBlocker = null;
 const go = (path) => {
-  location.hash = path;
+  const request = new CustomEvent("app:navigate-request", { detail: { path }, cancelable: true });
+  if (window.dispatchEvent(request)) location.hash = path;
 };
 const fmt = (v) => (v ? new Date(v).toLocaleString("zh-TW") : "—");
 const imageUrl = (url = "") => {
@@ -134,7 +136,14 @@ function usePath() {
     if (!location.hash.startsWith("#/") && p !== "/") {
       location.hash = "#" + p;
     }
-    const h = () => setP(read());
+    const h = () => {
+      const next = read();
+      if (routeNavigationBlocker?.(next)) {
+        history.replaceState(null, "", `#${p}`);
+        return;
+      }
+      setP(next);
+    };
     addEventListener("hashchange", h);
     addEventListener("popstate", h);
     return () => {
@@ -311,7 +320,36 @@ function ProjectEditor({ projectId }) {
     [data, setData] = useState(null),
     [tab, setTab] = useState(TABS[0]),
     [error, setError] = useState(null),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [saveStates, setSaveStates] = useState({}),
+    [pendingPath, setPendingPath] = useState("");
+  const hasUnsavedChanges = Object.values(saveStates).some(Boolean);
+  const reportSaveState = (key, pending) => setSaveStates((current) =>
+    current[key] === pending ? current : { ...current, [key]: pending });
+  useEffect(() => {
+    const beforeUnload = (event) => {
+      if (!hasUnsavedChanges) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    const beforeNavigate = (event) => {
+      if (!hasUnsavedChanges || event.detail.path === `/admin/projects/${projectId}`) return;
+      event.preventDefault();
+      setPendingPath(event.detail.path);
+    };
+    routeNavigationBlocker = (path) => {
+      if (!hasUnsavedChanges || path === `/admin/projects/${projectId}`) return false;
+      setPendingPath(path);
+      return true;
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    window.addEventListener("app:navigate-request", beforeNavigate);
+    return () => {
+      routeNavigationBlocker = null;
+      window.removeEventListener("beforeunload", beforeUnload);
+      window.removeEventListener("app:navigate-request", beforeNavigate);
+    };
+  }, [hasUnsavedChanges, projectId]);
   const load = async () => {
     if (!admin) return;
     setBusy(true);
@@ -337,6 +375,7 @@ function ProjectEditor({ projectId }) {
     reload: load,
     busy,
     setBusy,
+    reportSaveState,
   };
   return (
     <div className="shell">
@@ -366,9 +405,9 @@ function ProjectEditor({ projectId }) {
               ))}
             </nav>
             <section className="card">
-              {tab === "專案設定" && <Settings {...ctx} />}{" "}
-              {tab === "使用者設定" && <Users {...ctx} />}{" "}
-              {tab === "問卷設計" && <Builder {...ctx} />}{" "}
+              <div hidden={tab !== "專案設定"}><Settings {...ctx} /></div>
+              <div hidden={tab !== "使用者設定"}><Users {...ctx} /></div>
+              <div hidden={tab !== "問卷設計"}><Builder {...ctx} /></div>
               {tab === "填寫狀況" && <Status {...ctx} />}{" "}
               {tab === "回答資料" && <Responses {...ctx} />}{" "}
               {tab === "統計分析" && <Stats {...ctx} />}{" "}
@@ -377,6 +416,20 @@ function ProjectEditor({ projectId }) {
               {tab === "分享設定" && <Share {...ctx} />}{" "}
               {tab === "操作紀錄" && <Logs {...ctx} />}
             </section>
+            {pendingPath && (
+              <div className="save-guard-backdrop" role="presentation">
+                <div className="save-guard" role="dialog" aria-modal="true" aria-labelledby="save-guard-title">
+                  <h3 id="save-guard-title">{hasUnsavedChanges ? "資料尚未保存完" : "資料已儲存"}</h3>
+                  <p>{hasUnsavedChanges ? "系統仍在背景儲存變更。建議等待完成後再離開，避免資料遺失。" : "所有變更都已保存，現在可以安心離開。"}</p>
+                  <div className="row end">
+                    <button className="btn ghost" onClick={() => setPendingPath("")}>留在此頁</button>
+                    <button className={hasUnsavedChanges ? "btn danger" : "btn"} onClick={() => { const path = pendingPath; routeNavigationBlocker = null; setPendingPath(""); location.hash = path; }}>
+                      {hasUnsavedChanges ? "仍要離開" : "離開此頁"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </main>
@@ -384,7 +437,7 @@ function ProjectEditor({ projectId }) {
   );
 }
 
-function Settings({ admin, projectId, data, setData, reload, setError }) {
+function Settings({ admin, projectId, data, setData, reload, setError, reportSaveState }) {
   const p = data.project,
     s = data.settings,
     [form, setForm] = useState({
@@ -398,6 +451,9 @@ function Settings({ admin, projectId, data, setData, reload, setError }) {
     });
   const [saveStatus, setSaveStatus] = useState(""),
     initialRef = useRef(form);
+  useEffect(() => {
+    reportSaveState("settings", JSON.stringify(initialRef.current) !== JSON.stringify(form));
+  }, [form, saveStatus, reportSaveState]);
   useEffect(() => {
     if (JSON.stringify(initialRef.current) === JSON.stringify(form)) return;
     setSaveStatus("儲存中...");
@@ -553,7 +609,7 @@ function Field({ label, children }) {
   );
 }
 
-function Users({ admin, projectId, data, setData, reload, setError }) {
+function Users({ admin, projectId, data, setData, reload, setError, reportSaveState }) {
   const p = data.project, s = data.settings;
   const [accessMode, setAccessMode] = useState(s.access_mode || 'specified');
   const [fields, setFields] = useState(
@@ -573,6 +629,9 @@ function Users({ admin, projectId, data, setData, reload, setError }) {
     initialRef = useRef({ fields, labels, accessMode }),
     [importing, setImporting] = useState(false);
   const preview = useMemo(() => parsePaste(paste, fields), [paste, fields]);
+  useEffect(() => {
+    reportSaveState("users", JSON.stringify(initialRef.current) !== JSON.stringify({ fields, labels, accessMode }));
+  }, [fields, labels, accessMode, saveStatus, reportSaveState]);
   useEffect(() => {
     if (
       JSON.stringify(initialRef.current) === JSON.stringify({ fields, labels, accessMode })
@@ -837,7 +896,7 @@ function parsePaste(text, fields) {
   };
 }
 
-function Builder({ admin, projectId, data, setData, setError }) {
+function Builder({ admin, projectId, data, setData, setError, reportSaveState }) {
   const [schema, setSchema] = useState(data.schema);
   const schemaRef = useRef(schema), pastRef = useRef([]), futureRef = useRef([]), coalesceRef = useRef({ key: "", time: 0 });
   const [historyState, setHistoryState] = useState({ undo: false, redo: false });
@@ -905,6 +964,9 @@ function Builder({ admin, projectId, data, setData, setError }) {
     return () => clearTimeout(t);
   }, [schema]);
   useEffect(() => {
+    reportSaveState("builder", savedHashRef.current !== JSON.stringify(schema));
+  }, [schema, saveStatus, reportSaveState]);
+  useEffect(() => {
     const onKey = (event) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
       if (event.key.toLowerCase() === "z") { event.preventDefault(); if (event.shiftKey) redo(); else undo(); }
@@ -960,10 +1022,10 @@ function Builder({ admin, projectId, data, setData, setError }) {
           <div className="section-items stack" style={{ display: collapsedSections[s.id] ? "none" : "grid" }}>
             {schema.questions.filter((q) => q.sectionId === s.id).map((q, localIndex, sectionQuestions) => (
               <div key={q.id} className={`question-drop ${dragging?.id === q.id ? "dragging" : ""}`} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (dragging?.type === "question") moveQuestion(dragging.id, s.id, q.id); setDragging(null); }}>
-                <QuestionEditor q={q} sections={schema.sections} ctx={{ admin, projectId, data, setError }}
+                <QuestionEditor q={q} sections={schema.sections} questions={schema.questions} questionNumber={`${i + 1}-${localIndex + 1}`} ctx={{ admin, projectId, data, setError }}
                   dragHandle={<button className="drag-grip" draggable onDragStart={(e) => { setDragging({ type: "question", id: q.id }); e.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => setDragging(null)} aria-label={`拖曳題目 ${q.title}`} title="拖曳排序或移到其他區段">⠿</button>}
                   onChange={(v, key = "") => commit((current) => ({ ...current, questions: current.questions.map((x) => x.id === q.id ? v : x) }), key ? `question:${q.id}:${key}` : "")}
-                  onSectionChange={(sectionId) => moveQuestion(q.id, sectionId)}
+                  onMoveTo={(sectionId, beforeId) => moveQuestion(q.id, sectionId, beforeId)}
                   onMove={(d) => { const target = sectionQuestions[localIndex + d]; if (target) moveQuestion(q.id, s.id, d < 0 ? target.id : sectionQuestions[localIndex + d + 1]?.id || null); }}
                   onCopy={() => commit((current) => { const index = current.questions.findIndex((x) => x.id === q.id), questions = [...current.questions]; questions.splice(index + 1, 0, { ...clone(q), id: "Q" + crypto.randomUUID().slice(0, 8), title: q.title + "（複製）" }); return { ...current, questions }; })}
                   onDelete={() => { commit((current) => ({ ...current, questions: current.questions.filter((x) => x.id !== q.id) })); setNotice(`已刪除「${q.title}」`); }} />
@@ -986,8 +1048,10 @@ function Builder({ admin, projectId, data, setData, setError }) {
 function QuestionEditor({
   q,
   sections,
+  questions,
+  questionNumber,
   onChange,
-  onSectionChange,
+  onMoveTo,
   onMove,
   onCopy,
   onDelete,
@@ -1024,6 +1088,7 @@ function QuestionEditor({
     <div className="question stack">
       <div className="row">
         {dragHandle}
+        <strong className="question-number" aria-label={`題號 ${questionNumber}`}>{questionNumber}</strong>
         <input
           className="input"
           style={{ flex: 2 }}
@@ -1052,18 +1117,6 @@ function QuestionEditor({
             ))}
           </select>
         )}
-        <select
-          className="input"
-          style={{ flex: 1 }}
-          value={q.sectionId}
-          onChange={(e) => onSectionChange(e.target.value)}
-        >
-          {sections.map((s) => (
-            <option value={s.id} key={s.id}>
-              {s.title}
-            </option>
-          ))}
-        </select>
       </div>
       <textarea
         className="input"
@@ -1226,7 +1279,29 @@ function QuestionEditor({
         ) : (
           <div />
         )}
-        <div className="row">
+        <div className="row question-actions">
+          <label className="move-position">
+            <span>移動位置</span>
+            <select className="input" value="" onChange={(e) => {
+              const [sectionId, beforeId = ""] = e.target.value.split("|");
+              if (sectionId) onMoveTo(sectionId, beforeId || null);
+            }}>
+              <option value="">目前：{questionNumber}</option>
+              {sections.flatMap((section, sectionIndex) => {
+                const items = questions.filter((item) => item.sectionId === section.id && item.id !== q.id);
+                return [
+                  ...items.map((item, index) => (
+                    <option key={`${section.id}|${item.id}`} value={`${section.id}|${item.id}`}>
+                      移到 {sectionIndex + 1}-{index + 1} 前面
+                    </option>
+                  )),
+                  <option key={`${section.id}|end`} value={`${section.id}|`}>
+                    移到區段 {sectionIndex + 1} 最後
+                  </option>,
+                ];
+              })}
+            </select>
+          </label>
           <button className="btn ghost" onClick={() => onMove(-1)}>
             ↑
           </button>
