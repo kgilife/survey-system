@@ -2149,10 +2149,15 @@ function SurveyLogin({ projectId }) {
   return (
     <div className="shell">
       <Header />
-      <form className="narrow card stack" onSubmit={login}>
-        <span className="badge">{meta?.status || "問卷登入"}</span>
-        <h1>{meta?.name || "載入問卷…"}</h1>
-        <p className="muted">{meta?.description}</p>
+      <form className="narrow card stack survey-login" onSubmit={login}>
+        <header className="survey-login__header">
+          <span className="survey-login__status">
+            <span aria-hidden="true" />
+            {meta?.status || "問卷登入"}
+          </span>
+          <h1>{meta?.name || "載入問卷…"}</h1>
+          <p>{meta?.description || "請輸入驗證資訊以開始填寫"}</p>
+        </header>
         <ErrorBox error={error} />
         <Field label={meta?.accountLabel || "帳號"}>
           <input
@@ -2172,7 +2177,7 @@ function SurveyLogin({ projectId }) {
           />
         </Field>
         <button className="btn primary" disabled={busy}>
-          {busy ? "登入中…" : "登入填寫"}
+          {busy ? "驗證中…" : "驗證並開始"}
         </button>
       </form>
     </div>

@@ -334,6 +334,77 @@ textarea.input {
   font-size: 0.8rem;
   font-weight: 750;
 }
+
+/* Respondent login: make the survey state contextual instead of banner-like. */
+.survey-login {
+  width: min(616px, calc(100% - 32px));
+  margin: clamp(28px, 7vh, 72px) auto;
+  padding: clamp(28px, 5vw, 38px);
+  gap: 20px;
+}
+.survey-login__header {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 6px;
+}
+.survey-login__status {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  border-radius: 999px;
+  padding: 6px 11px;
+  background: #efffc1;
+  color: #435c0a;
+  font-size: .78rem;
+  font-weight: 800;
+}
+.survey-login__status > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #73a600;
+  box-shadow: 0 0 0 3px rgba(115, 166, 0, .12);
+}
+.survey-login__header h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 2.7rem);
+  line-height: 1.12;
+  letter-spacing: -.045em;
+}
+.survey-login__header p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.survey-login .field {
+  gap: 8px;
+}
+.survey-login .field label {
+  color: #343630;
+  font-size: .9rem;
+}
+.survey-login .input {
+  min-height: 54px;
+  border-color: #d5d6d0;
+  border-radius: 12px;
+  background: #fafaf8;
+  padding: 13px 15px;
+}
+.survey-login .btn.primary {
+  min-height: 52px;
+  margin-top: 4px;
+  font-size: 1rem;
+}
+@media(max-width:560px) {
+  .survey-login {
+    width: min(100% - 20px, 616px);
+    margin: 10px auto 32px;
+    padding: 24px 20px;
+    gap: 18px;
+  }
+}
 .table-wrap {
   overflow: auto;
   border: 1px solid var(--line);
