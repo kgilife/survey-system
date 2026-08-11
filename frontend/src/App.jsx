@@ -1218,7 +1218,7 @@ function QuestionEditor({
       )}
       <AdvancedEditor q={q} onChange={onChange} uploadImage={uploadQuestionImage} />
       {uploadState && <div className={uploadState.includes("失敗") ? "alert error" : "alert"} role="status">{uploadState}</div>}
-      {q.type === "linked_multi" && (
+      {["linked_multi", "linked_short"].includes(q.type) && (
         <div className="stack">
           <button
             className="btn secondary"
@@ -3075,11 +3075,11 @@ function Images({
       return window.toast(`最多 ${max} 個檔案`, "error");
     for (const file of files) {
       if (
-        !["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(
+        !["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"].includes(
           file.type,
         )
       )
-        return window.toast("僅支援 JPG, PNG, WEBP, PDF 格式", "error");
+        return window.toast("僅支援 JPG、PNG、WEBP、HEIC、HEIF 格式", "error");
       if (file.size > 5 * 1024 * 1024) return window.toast(`${file.name} 超過 5 MB`, "error");
     }
     let currentFiles = [...vals];
@@ -3115,7 +3115,7 @@ function Images({
           onChange={pick}
         />
       </label>
-      {files.map((f) => (
+      {vals.map((f) => (
         <ImageItem
           key={f.attachmentId}
           f={f}
@@ -3123,7 +3123,7 @@ function Images({
           downloadFn={downloadFn}
           onDelete={async () => {
             await deleteFn(f.attachmentId);
-            onChange(files.filter((x) => x.attachmentId !== f.attachmentId));
+            onChange(vals.filter((x) => x.attachmentId !== f.attachmentId));
           }}
         />
       ))}

@@ -1,40 +1,43 @@
 import { useMemo, useState } from "react";
+import { AdvancedQuestion } from "./AdvancedQuestions";
 
 const go = (path) => { location.hash = path; };
 
 const QUESTION_GUIDE = [
-  ["簡答", "姓名、部門、員工編號", "適合一行內的文字。可設為必填，並用說明文字交代格式，例如「請輸入 6 碼員工編號」。"],
-  ["詳答", "請說明本次活動最需要改善的地方", "適合意見與敘述。題目要聚焦，避免只寫「其他建議」而讓填答者無從下手。"],
-  ["單選題", "您最常使用哪一種交通工具？", "選項互斥、只能選一個。若可能不在清單內，加入「其他」或「不適用」。"],
-  ["核取方塊", "您使用過哪些服務？（可複選）", "可選多個答案。請在題目明說「可複選」，並避免選項彼此重疊。"],
-  ["下拉式選單", "請選擇所在縣市", "適合選項多、名稱短的清單；選項少於 6 個時，通常用單選題更容易比較。"],
-  ["線性刻度", "您有多大可能推薦本服務？0–10 分", "清楚標示最低與最高分代表的意義，例如 0＝完全不可能、10＝非常可能。"],
-  ["單選方格", "請為各服務項目評分", "每一列只能選一格。列是待評項目，欄是同一組尺度，建議不超過 7 欄。"],
-  ["核取方塊格", "各時段可參加的活動（可複選）", "每列可複選。適合多個對象共用相同選項；手機上列與欄不宜過多。"],
-  ["日期／時間", "您希望預約的日期與時段", "分開詢問日期與時間，並在說明中交代時區、可選範圍與截止時間。"],
-  ["圖片選擇", "請選出偏好的包裝設計", "每張圖片使用相同比例並加上文字標籤，避免答案只能靠顏色區分。"],
-  ["星級評分", "請為本次體驗評分（1–5 星）", "適合快速滿意度；標註 1 星與 5 星含義，避免不同人對星等理解不一。"],
-  ["巢狀選擇", "縣市 → 行政區 → 門市", "用於前一層會決定下一層的資料。先整理完整階層，並提供找不到項目時的替代選項。"],
-  ["項目排序", "請依重要性排列以下福利", "項目建議控制在 5–8 個。題幹要寫清楚排序方向，例如「最重要放最上方」。"],
-  ["總計分配", "請將 100 點分配給各項服務", "設定固定總分並即時顯示剩餘點數，適合衡量相對權重。"],
-  ["限量／庫存", "請選擇可預約場次", "為每個選項設定可用數量；發佈前確認額滿後的顯示文字與替代方案。"],
-  ["檔案／圖片上傳", "請上傳收據照片", "在題目中註明允許格式、檔案大小、張數與個資用途。非必要不要要求上傳。"],
-  ["簽名", "本人確認上述資料正確", "簽名前先呈現確認內容；若涉及法律效力，仍應依組織規範處理身分驗證與留存。"],
-  ["熱點點擊", "請點出最先注意到的區域", "上傳清楚的底圖並說明可點幾次。不同裝置比例需一致，避免座標偏移。"],
-  ["文字螢光筆", "請標記文案中喜歡與不喜歡的片段", "文章不宜過長；先說明標記顏色的意義，並避免把必要資訊藏在長文內。"],
-  ["最大差異法", "每組選出最重視與最不重視的項目", "適合測量偏好強度。選項文字需在同一層級，回合數不宜造成填答疲勞。"],
-  ["地圖定位", "請標記服務發生地點", "允許搜尋地址或使用目前位置，並說明定位資料用途；最好提供手動輸入作為替代。"],
-  ["條款同意", "閱讀個資告知後勾選同意", "條款需可閱讀、可捲動且有版本。必須同意與行銷訂閱應分開，不要預先勾選。"],
-  ["連結型題目", "依使用者資料帶入部門並追問", "先確認連結欄位唯一且資料完整。讓填答者看得懂系統帶入了什麼，以及能否修正。"],
+  ["簡答", "收集單行的簡短文字或特定格式資料", "適合姓名、編號、Email、電話或一句話回答。可設定文字、數字、Email 或電話格式驗證。", "short"],
+  ["詳答", "收集可分段輸入的較長文字內容", "適合原因說明、意見、心得、需求描述或補充資訊。題目要聚焦，避免只寫「其他建議」。", "paragraph"],
+  ["日期", "讓填答者選擇一個日期", "例如生日、到訪日、預計完成日或事件發生日。此題只收日期；若還需要時間，應另外新增時間題。", "date"],
+  ["時間", "讓填答者選擇一個時間", "例如抵達時間、聯絡時間、開始時間或結束時間。請在題目說明中交代時區與可選範圍。", "time"],
+  ["單選題", "從多個選項中選擇一個答案", "適合互斥且只能成立一項的答案，例如身分類別、偏好方案或是否同意；可能同時成立時請改用核取方塊。", "single"],
+  ["核取方塊", "從多個選項中選擇一個或多個答案", "例如感興趣的主題、使用過的功能、可配合日期或符合的條件。題目中應明說可複選。", "checkbox"],
+  ["下拉式選單", "從收合的選項清單中選擇一個答案", "適合選項較多且名稱較短的清單，例如單位、類別或年份。選項很少時，單選題通常較容易比較。", "dropdown"],
+  ["圖片選擇", "以圖片呈現選項，讓填答者選擇", "例如設計偏好、商品樣式、圖像辨識或版面比較。圖片應使用一致比例並附文字標籤。", "image_choice"],
+  ["線性刻度", "在連續刻度上選擇一個程度或分數", "可用於滿意、同意、困難、頻率或推薦意願。請清楚說明最低與最高刻度各代表什麼。", "scale"],
+  ["星級評分", "以星號快速選擇一個評分", "適合整體評價、品質、使用感受或喜好程度。星星帶有好壞方向，不適合沒有正負方向的量測。", "star_rating"],
+  ["單選方格", "對多個列項目，各選擇一個欄位答案", "例如同時評估多個項目的滿意度、同意程度或使用頻率。每一列只能選一格。", "radio_grid"],
+  ["核取方塊格", "對多個列項目，各選擇一個或多個欄位答案", "例如不同日期可配合的時段，或多個項目各自符合的條件。手機畫面上不宜安排過多列與欄。", "checkbox_grid"],
+  ["總計分配", "將固定總數分配到多個項目", "例如分配預算、時間、資源或相對權重。所有輸入值加總必須等於管理員設定的目標總數。", "allocation"],
+  ["巢狀選擇", "依前一層選擇，逐層縮小下一層選項", "例如地區到地點、部門到人員、分類到品項。需先整理每一條完整階層路徑。", "cascading"],
+  ["項目排序", "將多個項目排出先後順序", "可以依重要性、偏好、處理優先順序或理想流程排列。題目必須明確交代排序方向。", "ranking"],
+  ["限量／庫存", "從具有剩餘數量限制的選項中選擇", "例如場次名額、商品、物資或配額。填答者正式送出後才會扣除數量。", "inventory"],
+  ["最大差異法", "在多組項目中反覆選出最偏好與最不偏好的項目", "適合比較功能、品牌、購買因素或需求優先程度。這是研究型題型，不等同一般的最佳／最差單選題。", "maxdiff"],
+  ["檔案／圖片上傳", "讓填答者從裝置選擇並上傳圖片檔案", "目前支援 JPG、PNG、WebP、HEIC 與 HEIF，例如照片、證明影像、畫面截圖或現場紀錄；單檔上限 5 MB。", "multi_image"],
+  ["簽名", "讓填答者在畫面上手寫簽名", "例如簽收、內容確認或現場作業留存。系統收集的是簽名圖像，不應直接宣稱具有特定法律效力。", "signature"],
+  ["熱點點擊", "在指定圖片上點選一個或多個位置", "例如標記注意區域、問題部位、偏好位置或空間中的特定位置。需提供清楚底圖。", "heatmap"],
+  ["文字螢光筆", "在指定文字中選取並標記文字片段", "例如標出重要、不清楚、認同或需要修改的內容。請先說明不同標記的意義。", "text_highlight"],
+  ["地圖定位", "透過裝置定位或手動輸入地址與座標", "例如填寫所在地、標記事件位置、指定集合點或回報需處理的位置。應說明位置資料的用途。", "location"],
+  ["條款同意", "顯示一段內容，要求填答者確認是否同意", "例如使用規範、注意事項、活動聲明、個資告知或授權內容。不同目的的同意事項應分開詢問。", "terms"],
+  ["連結型多選題", "依填寫者帳號顯示不同的可複選項目", "例如每人可處理的案件、可參加項目或負責對象不同。項目需依 account 預先設定。", "linked_multi"],
+  ["連結型簡答題", "依填寫者帳號顯示不同項目，並逐項輸入文字", "例如對個人負責的案件、設備或任務逐一填寫說明。項目需依 account 預先設定。", "linked_short"],
 ];
 
 const GUIDE_GROUPS = [
-  { name: "基礎與文字", hint: "收集文字、日期與時間", items: ["簡答", "詳答", "日期／時間"] },
+  { name: "基礎與文字", hint: "輸入文字、日期或時間", items: ["簡答", "詳答", "日期", "時間"] },
   { name: "標準選擇", hint: "讓填答者從選項中回答", items: ["單選題", "核取方塊", "下拉式選單", "圖片選擇"] },
-  { name: "評分與矩陣", hint: "比較程度、分數與多個項目", items: ["線性刻度", "星級評分", "單選方格", "核取方塊格", "總計分配"] },
-  { name: "視覺與多媒體", hint: "用圖片、檔案或互動畫面收集答案", items: ["檔案／圖片上傳", "簽名", "熱點點擊", "文字螢光筆", "地圖定位"] },
-  { name: "進階研究與邏輯", hint: "處理排序、名額、偏好與同意流程", items: ["巢狀選擇", "項目排序", "限量／庫存", "最大差異法", "條款同意"] },
-  { name: "個人化動態", hint: "依使用者資料帶入或追問", items: ["連結型題目"] },
+  { name: "評分與矩陣", hint: "表達程度、評分或多項對照", items: ["線性刻度", "星級評分", "單選方格", "核取方塊格", "總計分配"] },
+  { name: "視覺與多媒體", hint: "透過圖片、位置或手寫內容回答", items: ["檔案／圖片上傳", "簽名", "熱點點擊", "文字螢光筆", "地圖定位"] },
+  { name: "進階研究與邏輯", hint: "處理階層、排序、數量與研究型回答", items: ["巢狀選擇", "項目排序", "限量／庫存", "最大差異法", "條款同意"] },
+  { name: "依帳號顯示內容", hint: "為不同填寫者提供不同項目", items: ["連結型多選題", "連結型簡答題"] },
 ];
 
 function MiniBuilder() {
@@ -51,25 +54,88 @@ function MiniBuilder() {
   </div>;
 }
 
-const stepFor = (name) => {
-  if (name.includes("巢狀")) return ["進入「問卷設計」，新增「巢狀選擇」。", "在 Excel 將每一層放在不同欄，例如 A 欄縣市、B 欄行政區、C 欄門市。", "選取資料後按 Ctrl+C，回到問卷所點資料框，再按 Ctrl+V。", "按「儲存」，用預覽確認選了第一層後才會出現第二層。"];
-  if (name.includes("方格")) return ["新增題目後，先在「列」輸入要詢問的項目。", "在「欄」輸入每個項目共用的答案。", "單選方格每列只能選一格；核取方塊格每列可以選很多格。", "按「儲存」後用手機預覽，確認表格不會太寬。"];
-  if (name.includes("上傳") || name.includes("圖片上傳")) return ["新增「檔案／圖片上傳」題。", "把允許的格式、大小與最多張數寫進題目說明。", "只有真的需要時才開啟「必填」。", "儲存後實際上傳一個測試檔案，確認看得到檔名。"];
-  if (name.includes("分配")) return ["新增「總計分配」題，輸入要比較的項目。", "設定總分，例如 100 點。", "在題目中告訴填答者：全部數字加起來必須等於 100。", "預覽並測試少於或超過總分時的提示。"];
-  if (name.includes("排序")) return ["新增「項目排序」題。", "每行輸入一個項目，建議 5 到 8 個。", "說清楚排序方向，例如最重要放最上面。", "預覽時試著拖曳，手機上也要能順利移動。"];
-  if (name.includes("連結型")) return ["先到「使用者設定」建立 account 與要帶入的資料欄位。", "新增連結型題目，選擇要對應的使用者欄位。", "設定資料帶入後要顯示或追問的內容。", "用一個測試帳號登入預覽，確認帶入資料正確。"];
-  return ["進入專案的「問卷設計」，按「新增題目」。", `在題型清單選擇「${name}」，再輸入清楚的題目。`, "依需要加入選項、說明，只有一定要回答時才開啟「必填」。", "按「儲存」，再用「預覽」親自填一次。"];
+const GUIDE_STEPS = {
+  "簡答": ["新增「簡答」，輸入題目與必要的格式說明。", "選擇無限制、數字、Email 或電話格式。", "只有不可缺少的資料才勾選「必填」。", "預覽並輸入正確與錯誤格式各一次。"],
+  "詳答": ["新增「詳答」，把希望說明的範圍寫進題目。", "在說明欄補充需要包含的資訊。", "依實際需要決定是否必填。", "以手機預覽，確認長文字容易閱讀與輸入。"],
+  "日期": ["新增「日期」並說明要填哪一個日期。", "在說明欄寫清楚可填範圍或截止日。", "需要時間時另外新增「時間」題。", "預覽並使用日期選擇器測試。"],
+  "時間": ["新增「時間」並說明要填哪一個時間點。", "在說明欄交代時區與可選時段。", "需要日期時另外新增「日期」題。", "預覽並使用時間選擇器測試。"],
+  "單選題": ["新增「單選題」，每個答案按「＋新增選項」建立。", "確認所有選項互斥，不會同時成立。", "需要分流時，替各選項設定前往區段或送出表單。", "逐一測試每個選項的跳題結果。"],
+  "核取方塊": ["新增「核取方塊」，每個答案按「＋新增選項」建立。", "在題目或說明中標示可複選。", "避免選項重疊，必要時加入「其他」或「不適用」。", "預覽並測試同時勾選多個答案。"],
+  "下拉式選單": ["新增「下拉式選單」，建立所有清單項目。", "依填答者容易尋找的方式排列選項。", "需要分流時設定各選項的前往區段。", "預覽確認預設狀態仍是「請選擇」。"],
+  "圖片選擇": ["新增「圖片選擇題」，為每個選項輸入名稱。", "在選項旁貼上圖片網址或按「直接上傳」。", "依需要設定是否允許多選。", "用桌面與手機預覽圖片比例和選取狀態。"],
+  "線性刻度": ["新增「線性刻度」，以選項數量決定刻度格數。", "逐一修改刻度文字，說明每個值的含義。", "在題目中明確寫出評分方向。", "預覽滑桿與所有刻度標籤。"],
+  "星級評分": ["新增「星級評分題」。", "在「最高星數」設定 2 至 10 星。", "在題目或說明中交代低星與高星的含義。", "預覽並點選不同星數確認顯示。"],
+  "單選方格": ["新增「單選方格」。", "在左側「列選項」每行輸入一個待回答項目。", "在右側「欄選項」每行輸入一個共用答案。", "用手機預覽，確認表格不會因欄位太多而難以作答。"],
+  "核取方塊格": ["新增「核取方塊格」。", "在左側「列選項」輸入項目，右側「欄選項」輸入共用答案。", "在說明中標示每列可以複選。", "預覽並測試同一列勾選多欄。"],
+  "總計分配": ["新增「總計分配題」，建立要分配的項目。", "設定「目標總數」與顯示單位。", "在題目中說明所有項目的總和必須等於目標。", "預覽並測試不足、超過及正好符合目標三種情況。"],
+  "巢狀選擇": ["新增「巢狀選擇」。", "在 Excel 將每一層放在不同欄，每列代表一條完整路徑。", "複製資料後貼入「巢狀選單資料」。", "預覽確認選擇前一層後，下一層只顯示對應項目。"],
+  "項目排序": ["新增「項目排序題」，每行建立一個待排序項目。", "設定「最多排序數量」；0 代表全部都要排序。", "在題目中說明由上到下的排序方向。", "以按鈕及拖曳各測試一次，並檢查手機操作。"],
+  "限量／庫存": ["新增「限量／庫存題」，建立可選項目。", "在各選項右側輸入初始庫存。", "確認額滿項目的顯示方式與替代說明。", "用測試問卷正式送出，確認送出後才扣除庫存。"],
+  "最大差異法": ["新增「最大差異法題」，建立所有待比較項目。", "設定每輪顯示選項數與交叉題組輪數。", "確認各選項位於相同比較層級。", "完整預覽所有輪次，確認最佳與最差不能選同一項。"],
+  "檔案／圖片上傳": ["新增「檔案／圖片上傳」，設定最多檔案數。", "在說明中寫明支援 JPG、PNG、WebP、HEIC、HEIF，且單檔上限 5 MB。", "說明圖片用途，非必要不要設為必填。", "實際上傳、重新開啟及刪除一個測試圖片。"],
+  "簽名": ["新增「簽名題」，在題目前呈現要確認的內容。", "說明簽名用途及資料保存方式。", "預覽測試書寫、復原、清除與確認簽名。", "重新開啟測試回答，確認簽名預覽與重簽功能。"],
+  "熱點點擊": ["新增「熱點點擊題」。", "在「底圖網址」貼上網址，或按「直接上傳」。", "在說明中交代要點選的位置與次數。", "分別用桌面和手機點擊，確認標記落在預期位置。"],
+  "文字螢光筆": ["新增「文字螢光筆題」。", "在「要標記的原文」輸入固定文字。", "在題目中說明「喜歡」與「反感」標記代表什麼。", "預覽選取文字、切換標記及清除結果。"],
+  "地圖定位": ["新增「地圖定位題」。", "在題目說明中交代要提供哪一個位置及資料用途。", "填答者可搜尋地址、輸入經緯度或取得目前位置。", "預覽測試地址搜尋、定位權限與地圖微調。"],
+  "條款同意": ["新增「條款同意題」。", "在「條款內容」輸入完整且可閱讀的文字。", "不同目的的同意事項分成不同題目。", "預覽確認短條款可直接勾選，長條款需捲至底部。"],
+  "連結型多選題": ["先到「使用者設定」建立填寫者帳號。", "新增「連結型多選題」，點「編輯連結型選項」。", "從 Excel 貼上 account、value、label 三欄；同一帳號可有多列。", "等候「已自動儲存」，再用不同帳號登入確認各自的複選項目。"],
+  "連結型簡答題": ["先到「使用者設定」建立填寫者帳號。", "新增「連結型簡答題」，點「編輯連結型選項」。", "從 Excel 貼上 account、value、label 三欄；每列會成為一個文字輸入項目。", "等候「已自動儲存」，再用不同帳號登入確認各自的輸入項目。"],
 };
+const stepFor = (name) => GUIDE_STEPS[name] || ["新增題目並輸入清楚的題目與說明。", "完成題型專屬設定。", "依必要性決定是否必填。", "儲存後實際預覽作答。"];
 
-function AnswerPreview({ name, example }) {
-  const many = name.includes("核取") || name.includes("上傳");
-  const options = name.includes("評分") || name.includes("刻度") ? ["1", "2", "3", "4", "5"] : ["選項 A", "選項 B", "其他"];
+const option = (value, label = value) => ({ value, label });
+const previewImage = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='640' height='260'><rect width='640' height='260' fill='#e8ece7'/><rect x='55' y='45' width='220' height='145' rx='12' fill='#c8d6cc'/><circle cx='445' cy='115' r='62' fill='#a8bcb0'/><path d='M0 235L165 145l115 65 120-90 240 115' fill='none' stroke='#64796d' stroke-width='12'/></svg>");
+const SAMPLE_TITLES = {
+  short: "請輸入識別代碼", paragraph: "請補充說明你的想法", date: "請選擇日期", time: "請選擇時間",
+  single: "請選擇最符合的一項", checkbox: "請選擇所有符合的項目", dropdown: "請從清單選擇一項",
+  image_choice: "請選擇偏好的圖片", scale: "請選擇符合你的程度", star_rating: "請給予整體評分",
+  radio_grid: "請為各項目選擇一個程度", checkbox_grid: "請為各項目選擇所有符合條件",
+  allocation: "請將 100 點分配給下列項目", cascading: "請依序選擇分類與項目", ranking: "請由上到下排列優先順序",
+  inventory: "請選擇項目與數量", maxdiff: "每輪請選出最偏好與最不偏好的一項", multi_image: "請上傳所需圖片或檔案",
+  signature: "請在下方簽名", heatmap: "請在圖片上點選指定位置", text_highlight: "請選取並標記文字片段",
+  location: "請提供一個位置", terms: "請閱讀內容並確認是否同意", linked_multi: "請選擇你可處理的項目",
+  linked_short: "請逐項填寫說明",
+};
+function sampleQuestion(name, type, summary) {
+  const base = { id: `guide-${type}`, type, title: SAMPLE_TITLES[type] || summary, description: "以下為示範資料", required: true, options: [option("a", "項目 A"), option("b", "項目 B"), option("c", "項目 C")], config: {} };
+  if (type === "scale") base.options = [1, 2, 3, 4, 5].map(x => option(String(x), String(x)));
+  if (["radio_grid", "checkbox_grid"].includes(type)) Object.assign(base, { options: [option("item1", "項目一"), option("item2", "項目二")], config: { cols: ["低", "中", "高"] } });
+  if (type === "star_rating") base.config = { max: 5 };
+  if (type === "allocation") Object.assign(base, { options: [option("a", "項目 A"), option("b", "項目 B"), option("c", "項目 C")], config: { target: 100, unit: "點" } });
+  if (type === "cascading") base.options = [option("類別/項目"), option("類別 A / 項目一"), option("類別 A / 項目二"), option("類別 B / 項目三")];
+  if (type === "ranking") base.config = { rankLimit: 3 };
+  if (type === "inventory") base.options = [{ value: "a", label: "項目 A", remaining: 8 }, { value: "b", label: "項目 B", remaining: 3 }];
+  if (type === "maxdiff") Object.assign(base, { options: [option("a", "因素 A"), option("b", "因素 B"), option("c", "因素 C"), option("d", "因素 D")], config: { setSize: 4, rounds: 1 } });
+  if (type === "image_choice") base.options = [{ value: "a", label: "圖片 A", imageUrl: previewImage }, { value: "b", label: "圖片 B", imageUrl: previewImage }];
+  if (type === "heatmap") base.config = { imageUrl: previewImage };
+  if (type === "text_highlight") base.config = { text: "這是一段可供填答者選取並標記的示範文字。" };
+  if (type === "terms") base.config = { terms: "請閱讀這段示範內容，確認理解後再勾選同意。", version: "guide" };
+  if (type === "linked_multi") base.options = [option("case-a", "此帳號的項目一"), option("case-b", "此帳號的項目二")];
+  if (type === "linked_short") base.options = [option("case-a", "此帳號的項目一"), option("case-b", "此帳號的項目二")];
+  return base;
+}
+
+function BasicPreview({ q, value, onChange }) {
+  const common = { className: "input", value: value ?? "", onChange: e => onChange(e.target.value) };
+  if (q.type === "paragraph") return <textarea {...common}/>;
+  if (["short", "date", "time"].includes(q.type)) return <input type={q.type === "short" ? "text" : q.type} {...common}/>;
+  if (q.type === "dropdown") return <select {...common}><option value="">請選擇</option>{q.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select>;
+  if (q.type === "single") return <div className="stack">{q.options.map(o => <label key={o.value}><input type="radio" checked={value === o.value} onChange={() => onChange(o.value)}/> {o.label}</label>)}</div>;
+  if (["checkbox", "linked_multi"].includes(q.type)) { const vals = Array.isArray(value) ? value : []; return <div className="stack">{q.options.map(o => <label key={o.value}><input type="checkbox" checked={vals.includes(o.value)} onChange={e => onChange(e.target.checked ? [...vals, o.value] : vals.filter(x => x !== o.value))}/> {o.label}</label>)}</div>; }
+  if (q.type === "linked_short") { const vals = value && typeof value === "object" ? value : {}; return <div className="stack">{q.options.map(o => <label className="field" key={o.value}><span>{o.label}</span><input className="input" value={vals[o.value] || ""} onChange={e => onChange({...vals, [o.value]: e.target.value})}/></label>)}</div>; }
+  if (q.type === "scale") return <div className="stack"><input type="range" min="1" max="5" value={value || 1} onChange={e => onChange(e.target.value)}/><div className="row spread small muted">{q.options.map(o => <span key={o.value}>{o.label}</span>)}</div></div>;
+  if (["radio_grid", "checkbox_grid"].includes(q.type)) { const radio = q.type === "radio_grid"; return <div className="table-wrap"><table className="grid-table"><thead><tr><th></th>{q.config.cols.map(c => <th key={c}>{c}</th>)}</tr></thead><tbody>{q.options.map(r => <tr key={r.value}><td>{r.label}</td>{q.config.cols.map(c => <td key={c}><input type={radio ? "radio" : "checkbox"} name={`${q.id}-${r.value}`}/></td>)}</tr>)}</tbody></table></div>; }
+  if (q.type === "multi_image") return <label className="dropzone">選擇檔案（單檔 5 MB，最多 5 個）<input hidden type="file" multiple/></label>;
+  if (q.type === "signature") return <div className="stack"><canvas className="signature" aria-label="簽名畫布"></canvas><div className="row"><button type="button" disabled className="btn secondary">清除</button><button type="button" disabled className="btn secondary">復原</button><button type="button" disabled className="btn primary">確認簽名</button></div></div>;
+  return <AdvancedQuestion q={q} value={value} onChange={onChange} disabled={false}/>;
+}
+
+function AnswerPreview({ name, summary, type }) {
+  const q = useMemo(() => sampleQuestion(name, type, summary), [name, type, summary]);
+  const [value, setValue] = useState("");
   return <div className="answer-preview" aria-label={`${name}填答畫面範例`}>
     <div className="answer-browser"><i/><i/><i/><span>填答畫面</span></div>
-    <div className="answer-sheet"><small>問題 1　<span>＊必填</span></small><strong>{example}</strong>
-      {(name.includes("簡答") || name.includes("詳答") || name.includes("日期") || name.includes("時間") || name.includes("定位"))
-        ? <div className="fake-input">請在這裡輸入答案…</div>
-        : <div className="fake-options">{options.map(x => <label key={x}><i className={many ? "square" : ""}/>{x}</label>)}</div>}
+    <div className="answer-sheet"><small>問題 1　<span>＊必填</span></small><div className="question stack"><div><strong>{q.title} <span className="required">*</span></strong><div className="muted small">{q.description}</div></div><BasicPreview q={q} value={value} onChange={setValue}/></div>
     </div>
   </div>;
 }
@@ -113,7 +179,7 @@ export default function Landing() {
       <section className="guide" id="guide">
         <div className="guide-head"><div><p className="section-kicker">題型指南</p><h2>每一題，都有正確的問法。</h2><p>從常見選項到研究型題目，這裡提供可直接套用的設定案例。</p></div><label className="guide-search"><span>搜尋題型或情境</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="例如：評分、預約、圖片"/><i>⌕</i></label></div>
         <div className="guide-list">
-          {groupedList.map((group, groupIndex) => <section className="guide-group" key={group.name}><header><span>{group.name}</span><p>{group.hint}</p></header>{group.guides.map(([name, example, note], itemIndex) => <details key={name} open={!query && groupIndex === 0 && itemIndex === 0}><summary><b>{name}</b><em>{example}</em><i>＋</i></summary><div className="guide-detail"><div className="guide-copy"><section><small>這種題目適合什麼時候？</small><p>{note}</p></section><section><small>管理頁面怎麼設定？</small><ol>{stepFor(name).map(step => <li key={step}>{step}</li>)}</ol></section></div><section><small>填答者實際會看到</small><AnswerPreview name={name} example={example}/><p className="preview-caption">這是簡化示意；實際畫面會套用你的題目、選項與必填設定。</p></section></div></details>)}</section>)}
+          {groupedList.map((group, groupIndex) => <section className="guide-group" key={group.name}><header><span>{group.name}</span><p>{group.hint}</p></header>{group.guides.map(([name, summary, note, type], itemIndex) => <details key={name} open={!query && groupIndex === 0 && itemIndex === 0}><summary><b>{name}</b><em>{summary}</em><i>＋</i></summary><div className="guide-detail"><div className="guide-copy"><section><small>這種題目適合什麼時候？</small><p>{note}</p></section><section><small>管理頁面怎麼設定？</small><ol>{stepFor(name).map(step => <li key={step}>{step}</li>)}</ol></section></div><section><small>填答者畫面預覽</small><AnswerPreview name={name} summary={summary} type={type}/><p className="preview-caption">預覽使用與正式填答頁相同的題型控制；內容為不含個資的示範資料。</p></section></div></details>)}</section>)}
           {!list.length && <div className="empty-guide">找不到符合的題型。試試「選擇」、「評分」或「上傳」。</div>}
         </div>
       </section>
