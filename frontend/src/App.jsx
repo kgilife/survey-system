@@ -1557,12 +1557,16 @@ function Stats({ admin, projectId, data }) {
   const [dimensions, setDimensions] = useState([]),
     [stats, setStats] = useState({ summary: data.project.stats, groups: [] }),
     [advanced, setAdvanced] = useState({ heatmaps: [], maxdiff: [] }),
+    [advancedError, setAdvancedError] = useState(null),
     [loading, setLoading] = useState(false);
   const allowed = data.fields.filter(
     (f) =>
       f.field_key === "account" ||
       (String(f.statistical_dimension) === "true" &&
         f.field_key !== "password"),
+  );
+  const dimensionLabels = Object.fromEntries(
+    allowed.map((field) => [field.field_key, field.field_label]),
   );
   async function load(next = dimensions) {
     setDimensions(next);
@@ -1581,7 +1585,12 @@ function Stats({ admin, projectId, data }) {
       setLoading(false);
     }
   }
-  useEffect(() => { api.adminAdvancedAnalytics({token:admin.token,projectId}).then((r) => setAdvanced(r.data)); }, [projectId]);
+  useEffect(() => {
+    setAdvancedError(null);
+    api.adminAdvancedAnalytics({ token: admin.token, projectId })
+      .then((r) => setAdvanced(r.data))
+      .catch((error) => setAdvancedError(error));
+  }, [projectId]);
   return (
     <div className="stack">
       <div className="row spread">
@@ -1611,6 +1620,7 @@ function Stats({ admin, projectId, data }) {
           </label>
         ))}
       </div>
+      <p className="muted small">勾選欄位即可展開使用者填寫明細，並依所選欄位分組統計。</p>
       <div className="grid">
         <Metric label="總人數" value={stats.summary.total} />
         <Metric label="曾登入" value={stats.summary.loggedIn} />
@@ -1623,7 +1633,7 @@ function Stats({ admin, projectId, data }) {
         <SimpleTable
           rows={stats.groups.map((g) =>
             Object.fromEntries([
-              ...dimensions.map((d, i) => [d, g.values[i]]),
+              ...dimensions.map((d, i) => [dimensionLabels[d] || d, g.values[i]]),
               ["使用者數", g.total],
               ["已送出", g.submitted],
               ["填寫率", g.rate + "%"],
@@ -1631,10 +1641,31 @@ function Stats({ admin, projectId, data }) {
           )}
         />
       )}
-      {advanced.heatmaps.map((h) => <div className="stack" key={h.questionId}><h3>{h.title}－多人熱點圖</h3><p className="muted">{h.responses} 份已送出回答，共 {h.points.length} 個熱點</p><div className="heatmap analytics-heatmap">{h.imageUrl && <img src={h.imageUrl} alt={h.title} />}{h.points.map((p,i) => <i key={i} style={{left:`${p.x*100}%`,top:`${p.y*100}%`}} />)}</div></div>)}
+      <ErrorBox error={advancedError} />
+      {advanced.heatmaps.map((h) => <AnalyticsHeatmap key={h.questionId} heatmap={h} />)}
       {advanced.maxdiff.map((m) => <div className="stack" key={m.questionId}><h3>{m.title}－MaxDiff 相對效用</h3><SimpleTable rows={m.utilities.map((u) => ({選項:u.label, 最偏好次數:u.best, 最不偏好次數:u.worst, 顯示次數:u.shown, 相對效用:u.utility}))} /></div>)}
     </div>
   );
+}
+
+function AnalyticsHeatmap({ heatmap: h }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const match = String(h.imageUrl || "").match(/[?&]id=([\w-]+)/);
+  const imageUrl = match && String(h.imageUrl).includes("drive.google.com/uc")
+    ? `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1600`
+    : h.imageUrl;
+  return <div className="stack">
+    <div><h3>{h.title}－多人熱點圖</h3><p className="muted small">將所有已送出回答的點擊位置疊在同一張底圖上，用來找出大家最常注意或選擇的區域。</p></div>
+    <p className="muted">{h.responses} 份已送出回答，共 {h.points.length} 個熱點</p>
+    {!imageUrl || imageFailed ? (
+      <div className="alert">{imageFailed ? "底圖載入失敗，請回到問卷設計重新上傳或確認圖片網址可公開讀取。" : "這題尚未設定底圖，因此無法顯示多人熱點圖。"}</div>
+    ) : (
+      <div className="heatmap analytics-heatmap">
+        <img src={imageUrl} alt={h.title} onError={() => setImageFailed(true)} />
+        {h.points.map((p,i) => <i key={i} style={{left:`${p.x*100}%`,top:`${p.y*100}%`}} />)}
+      </div>
+    )}
+  </div>;
 }
 function InventoryAdmin({ admin, projectId, data }) {
   const [state, setState] = useState({ stock: [], transactions: [] });
@@ -1984,7 +2015,19 @@ function Logs({ admin, projectId }) {
     try {
       const r = await api.adminLogs({ token: admin.token, projectId, page, pageSize, ...nextQuery });
       if (currentRequest !== requestId.current) return;
-      setResult(r.data);
+      const payload = r.data;
+      if (Array.isArray(payload)) {
+        setResult({ rows: payload, page: 1, pageSize: payload.length || pageSize, total: payload.length, totalPages: 1 });
+      } else {
+        const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+        setResult({
+          rows,
+          page: Number(payload?.page) || 1,
+          pageSize: Number(payload?.pageSize) || pageSize,
+          total: Number(payload?.total) || 0,
+          totalPages: Math.max(1, Number(payload?.totalPages) || 1),
+        });
+      }
       setError(null);
     } catch (e) {
       if (currentRequest !== requestId.current) return;
@@ -2035,10 +2078,10 @@ function Logs({ admin, projectId }) {
       </div>
       <ErrorBox error={error} />
       <div className="row spread">
-        <span className="muted small">共 {result.total.toLocaleString()} 筆，第 {result.page} / {result.totalPages} 頁</span>
+        <span className="muted small">共 {Number(result.total || 0).toLocaleString()} 筆，第 {result.page || 1} / {result.totalPages || 1} 頁</span>
         <label className="row small">每頁筆數<select className="input log-page-size" value={result.pageSize} onChange={(e) => load(1, Number(e.target.value))}><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
       </div>
-      {loading ? <div className="alert">資料載入中，請稍候…</div> : <SimpleTable rows={result.rows} />}
+      {loading ? <div className="alert">資料載入中，請稍候…</div> : <SimpleTable rows={Array.isArray(result.rows) ? result.rows : []} />}
       <div className="row spread log-pagination">
         <button className="btn secondary" disabled={loading || result.page <= 1} onClick={() => load(result.page - 1)}>上一頁</button>
         <button className="btn secondary" disabled={loading || result.page >= result.totalPages} onClick={() => load(result.page + 1)}>下一頁</button>
