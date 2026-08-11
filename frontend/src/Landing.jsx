@@ -42,13 +42,13 @@ const GUIDE_GROUPS = [
 
 function MiniBuilder() {
   return <div className="product-preview" aria-label="問卷編輯器示意">
-    <div className="preview-bar"><div><i/><span/><span/></div><p><b/>所有變更已儲存</p></div>
+    <div className="preview-bar"><div><i /><span /><span /></div><p><b />所有變更已儲存</p></div>
     <div className="preview-body">
       <aside><b>問卷設計</b><span>填答狀況</span><span>統計分析</span><span>分享設定</span></aside>
       <div className="preview-canvas">
         <div className="preview-title"><small>顧客體驗調查　·　編輯中</small><strong>讓每一個問題都有目的。</strong></div>
-        <div className="preview-question"><em>01</em><div><b>這次體驗最打動你的地方？</b><p>選擇一個最符合的答案</p><div className="preview-options"><i/><i/><i/></div></div></div>
-        <div className="preview-question muted-card"><em>02</em><div><b>你願意推薦給朋友嗎？</b><div className="preview-scale">0<span/>1<span/>2<span/>3<span/>4<span/>5</div></div></div>
+        <div className="preview-question"><em>01</em><div><b>這次體驗最打動你的地方？</b><p>選擇一個最符合的答案</p><div className="preview-options"><i /><i /><i /></div></div></div>
+        <div className="preview-question muted-card"><em>02</em><div><b>你願意推薦給朋友嗎？</b><div className="preview-scale">0<span />1<span />2<span />3<span />4<span />5</div></div></div>
       </div>
     </div>
   </div>;
@@ -117,25 +117,25 @@ function sampleQuestion(name, type, summary) {
 
 function BasicPreview({ q, value, onChange }) {
   const common = { className: "input", value: value ?? "", onChange: e => onChange(e.target.value) };
-  if (q.type === "paragraph") return <textarea {...common}/>;
-  if (["short", "date", "time"].includes(q.type)) return <input type={q.type === "short" ? "text" : q.type} {...common}/>;
+  if (q.type === "paragraph") return <textarea {...common} />;
+  if (["short", "date", "time"].includes(q.type)) return <input type={q.type === "short" ? "text" : q.type} {...common} />;
   if (q.type === "dropdown") return <select {...common}><option value="">請選擇</option>{q.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select>;
-  if (q.type === "single") return <div className="stack">{q.options.map(o => <label key={o.value}><input type="radio" checked={value === o.value} onChange={() => onChange(o.value)}/> {o.label}</label>)}</div>;
-  if (["checkbox", "linked_multi"].includes(q.type)) { const vals = Array.isArray(value) ? value : []; return <div className="stack">{q.options.map(o => <label key={o.value}><input type="checkbox" checked={vals.includes(o.value)} onChange={e => onChange(e.target.checked ? [...vals, o.value] : vals.filter(x => x !== o.value))}/> {o.label}</label>)}</div>; }
-  if (q.type === "linked_short") { const vals = value && typeof value === "object" ? value : {}; return <div className="stack">{q.options.map(o => <label className="field" key={o.value}><span>{o.label}</span><input className="input" value={vals[o.value] || ""} onChange={e => onChange({...vals, [o.value]: e.target.value})}/></label>)}</div>; }
-  if (q.type === "scale") return <div className="stack"><input type="range" min="1" max="5" value={value || 1} onChange={e => onChange(e.target.value)}/><div className="row spread small muted">{q.options.map(o => <span key={o.value}>{o.label}</span>)}</div></div>;
-  if (["radio_grid", "checkbox_grid"].includes(q.type)) { const radio = q.type === "radio_grid"; return <div className="table-wrap"><table className="grid-table"><thead><tr><th></th>{q.config.cols.map(c => <th key={c}>{c}</th>)}</tr></thead><tbody>{q.options.map(r => <tr key={r.value}><td>{r.label}</td>{q.config.cols.map(c => <td key={c}><input type={radio ? "radio" : "checkbox"} name={`${q.id}-${r.value}`}/></td>)}</tr>)}</tbody></table></div>; }
-  if (q.type === "multi_image") return <label className="dropzone">選擇檔案（單檔 5 MB，最多 5 個）<input hidden type="file" multiple/></label>;
+  if (q.type === "single") return <div className="stack">{q.options.map(o => <label key={o.value}><input type="radio" checked={value === o.value} onChange={() => onChange(o.value)} /> {o.label}</label>)}</div>;
+  if (["checkbox", "linked_multi"].includes(q.type)) { const vals = Array.isArray(value) ? value : []; return <div className="stack">{q.options.map(o => <label key={o.value}><input type="checkbox" checked={vals.includes(o.value)} onChange={e => onChange(e.target.checked ? [...vals, o.value] : vals.filter(x => x !== o.value))} /> {o.label}</label>)}</div>; }
+  if (q.type === "linked_short") { const vals = value && typeof value === "object" ? value : {}; return <div className="stack">{q.options.map(o => <label className="field" key={o.value}><span>{o.label}</span><input className="input" value={vals[o.value] || ""} onChange={e => onChange({ ...vals, [o.value]: e.target.value })} /></label>)}</div>; }
+  if (q.type === "scale") return <div className="stack"><input type="range" min="1" max="5" value={value || 1} onChange={e => onChange(e.target.value)} /><div className="row spread small muted">{q.options.map(o => <span key={o.value}>{o.label}</span>)}</div></div>;
+  if (["radio_grid", "checkbox_grid"].includes(q.type)) { const radio = q.type === "radio_grid"; return <div className="table-wrap"><table className="grid-table"><thead><tr><th></th>{q.config.cols.map(c => <th key={c}>{c}</th>)}</tr></thead><tbody>{q.options.map(r => <tr key={r.value}><td>{r.label}</td>{q.config.cols.map(c => <td key={c}><input type={radio ? "radio" : "checkbox"} name={`${q.id}-${r.value}`} /></td>)}</tr>)}</tbody></table></div>; }
+  if (q.type === "multi_image") return <label className="dropzone">選擇檔案（單檔 5 MB，最多 5 個）<input hidden type="file" multiple /></label>;
   if (q.type === "signature") return <div className="stack"><canvas className="signature" aria-label="簽名畫布"></canvas><div className="row"><button type="button" disabled className="btn secondary">清除</button><button type="button" disabled className="btn secondary">復原</button><button type="button" disabled className="btn primary">確認簽名</button></div></div>;
-  return <AdvancedQuestion q={q} value={value} onChange={onChange} disabled={false}/>;
+  return <AdvancedQuestion q={q} value={value} onChange={onChange} disabled={false} />;
 }
 
 function AnswerPreview({ name, summary, type }) {
   const q = useMemo(() => sampleQuestion(name, type, summary), [name, type, summary]);
   const [value, setValue] = useState("");
   return <div className="answer-preview" aria-label={`${name}填答畫面範例`}>
-    <div className="answer-browser"><i/><i/><i/><span>填答畫面</span></div>
-    <div className="answer-sheet"><small>問題 1　<span>＊必填</span></small><div className="question stack"><div><strong>{q.title} <span className="required">*</span></strong><div className="muted small">{q.description}</div></div><BasicPreview q={q} value={value} onChange={setValue}/></div>
+    <div className="answer-browser"><i /><i /><i /><span>填答畫面</span></div>
+    <div className="answer-sheet"><small>問題 1　<span>＊必填</span></small><div className="question stack"><div><strong>{q.title} <span className="required">*</span></strong><div className="muted small">{q.description}</div></div><BasicPreview q={q} value={value} onChange={setValue} /></div>
     </div>
   </div>;
 }
@@ -143,18 +143,18 @@ function AnswerPreview({ name, summary, type }) {
 export default function Landing() {
   const [query, setQuery] = useState("");
   const list = useMemo(() => QUESTION_GUIDE.filter(x => x.join(" ").includes(query.trim())), [query]);
-  const groupedList = useMemo(() => GUIDE_GROUPS.map(group => ({...group, guides: list.filter(item => group.items.includes(item[0]))})).filter(group => group.guides.length), [list]);
+  const groupedList = useMemo(() => GUIDE_GROUPS.map(group => ({ ...group, guides: list.filter(item => group.items.includes(item[0])) })).filter(group => group.guides.length), [list]);
   return <div className="landing">
     <nav className="landing-nav" aria-label="主要導覽">
-      <button className="landing-brand" onClick={() => scrollTo({top:0, behavior:"smooth"})}><span>問</span>問卷所</button>
+      <button className="landing-brand" onClick={() => scrollTo({ top: 0, behavior: "smooth" })}><span>問</span>問卷所</button>
       <div className="landing-links"><a href="#features">功能</a><a href="#guide">題型指南</a><button className="text-link" onClick={() => go("/admin/login")}>登入</button><button className="nav-cta" onClick={() => go("/register")}>開始建立</button></div>
     </nav>
 
     <main>
       <section className="landing-hero">
         <div className="eyebrow">SURVEY, MADE THOUGHTFUL</div>
-        <h1>問得更好，<br/>答案自然更清楚。</h1>
-        <p>結合 Google 表單的直覺操作與 SurveyCake 等專業工具的進階題型，而且免費。從 20+ 種問項、名單與填答權限，到即時統計與 Excel／CSV 匯出，一個地方就能完成。</p>
+        <h1>問得更好，<br />答案自然更清楚。</h1>
+        <p>操作直覺、題型豐富，而且免費。從 20+ 種問項、名單與填答權限，到即時統計與 Excel／CSV 匯出，一個地方就能完成。</p>
         <div className="hero-actions"><button className="pill primary" onClick={() => go("/register")}>免費建立第一份問卷</button><a className="pill link" href="#features">看看如何運作 <span>→</span></a></div>
         <div className="hero-proof" aria-label="產品特色"><span>免信用卡</span><span>支援匿名填答</span><span>Excel／CSV 匯出</span></div>
         <p className="preview-label">從設計到回收，集中在同一個工作區</p>
@@ -165,27 +165,27 @@ export default function Landing() {
         <p className="section-kicker">從想法到洞察</p>
         <h2>少一點設定，多一點理解。</h2>
         <div className="feature-grid">
-          <article className="feature-card warm"><span className="feature-no">01</span><h3>像寫文件一樣設計</h3><p>把題目拖進段落、即時調整順序。基礎題型與進階研究題型放在清楚的分類中，不必猜功能藏在哪。</p><div className="feature-visual lines"><i/><i/><i/></div></article>
-          <article className="feature-card blue"><span className="feature-no">02</span><h3>公開蒐集，也能精準指定</h3><p>除了像 Google 表單一樣，讓任何取得連結的人填寫，也能指定填答者並驗證身分，確保調查樣本來自真正需要的對象。</p><div className="feature-visual people"><i>林</i><i>王</i><i>陳</i><b>+24</b></div></article>
-          <article className="feature-card ink"><span className="feature-no">03</span><h3>結果不只是一張表</h3><p>即時掌握回收率、答案分布與文字回饋。需要深入分析時，再匯出乾淨資料。</p><div className="feature-visual chart"><i/><i/><i/><i/><i/></div></article>
+          <article className="feature-card warm"><span className="feature-no">01</span><h3>像寫文件一樣設計</h3><p>把題目拖進段落、即時調整順序。基礎題型與進階研究題型放在清楚的分類中，不必猜功能藏在哪。</p><div className="feature-visual lines"><i /><i /><i /></div></article>
+          <article className="feature-card blue"><span className="feature-no">02</span><h3>能開放大眾填寫，也能精準設定答題者名單</h3><p>除了像 Google 表單一樣，讓任何取得連結的人填寫，也能指定填答者並驗證身分，確保調查樣本來自真正需要的對象。</p><div className="feature-visual people"><i>林</i><i>王</i><i>陳</i><b>+24</b></div></article>
+          <article className="feature-card ink"><span className="feature-no">03</span><h3>結果不只是一張表</h3><p>即時掌握回收率、答案分布與文字回饋。需要深入分析時，再匯出乾淨資料。</p><div className="feature-visual chart"><i /><i /><i /><i /><i /></div></article>
         </div>
       </section>
 
       <section className="steps">
-        <div><p className="section-kicker">簡單但不簡陋</p><h2>三步完成一份可靠問卷。</h2></div>
+        <div><p className="section-kicker">輕鬆擁有專業設計的質感</p><h2>三步完成一份可靠問卷。</h2></div>
         <ol><li><b>建立架構</b><span>先寫調查目的，再用段落安排填答節奏。</span></li><li><b>選擇題型</b><span>依資料用途選題，而不是為了看起來豐富。</span></li><li><b>測試與發佈</b><span>用手機實際填一次，確認分支、必填與完成訊息。</span></li></ol>
       </section>
 
       <section className="guide" id="guide">
-        <div className="guide-head"><div><p className="section-kicker">題型指南</p><h2>每一題，都有正確的問法。</h2><p>從常見選項到研究型題目，這裡提供可直接套用的設定案例。</p></div><label className="guide-search"><span>搜尋題型或情境</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="例如：評分、預約、圖片"/><i>⌕</i></label></div>
+        <div className="guide-head"><div><p className="section-kicker">題型指南</p><h2>每一題，都有正確的問法。</h2><p>從常見選項到研究型題目，這裡提供可直接套用的設定案例。</p></div><label className="guide-search"><span>搜尋題型或情境</span><input value={query} onChange={e => setQuery(e.target.value)} placeholder="例如：評分、預約、圖片" /><i>⌕</i></label></div>
         <div className="guide-list">
-          {groupedList.map((group, groupIndex) => <section className="guide-group" key={group.name}><header><span>{group.name}</span><p>{group.hint}</p></header>{group.guides.map(([name, summary, note, type], itemIndex) => <details key={name} open={!query && groupIndex === 0 && itemIndex === 0}><summary><b>{name}</b><em>{summary}</em><i>＋</i></summary><div className="guide-detail"><div className="guide-copy"><section><small>這種題目適合什麼時候？</small><p>{note}</p></section><section><small>管理頁面怎麼設定？</small><ol>{stepFor(name).map(step => <li key={step}>{step}</li>)}</ol></section></div><section><small>填答者畫面預覽</small><AnswerPreview name={name} summary={summary} type={type}/><p className="preview-caption">預覽使用與正式填答頁相同的題型控制；內容為不含個資的示範資料。</p></section></div></details>)}</section>)}
+          {groupedList.map((group, groupIndex) => <section className="guide-group" key={group.name}><header><span>{group.name}</span><p>{group.hint}</p></header>{group.guides.map(([name, summary, note, type], itemIndex) => <details key={name} open={!query && groupIndex === 0 && itemIndex === 0}><summary><b>{name}</b><em>{summary}</em><i>＋</i></summary><div className="guide-detail"><div className="guide-copy"><section><small>這種題目適合什麼時候？</small><p>{note}</p></section><section><small>管理頁面怎麼設定？</small><ol>{stepFor(name).map(step => <li key={step}>{step}</li>)}</ol></section></div><section><small>填答者畫面預覽</small><AnswerPreview name={name} summary={summary} type={type} /><p className="preview-caption">預覽使用與正式填答頁相同的題型控制；內容為不含個資的示範資料。</p></section></div></details>)}</section>)}
           {!list.length && <div className="empty-guide">找不到符合的題型。試試「選擇」、「評分」或「上傳」。</div>}
         </div>
       </section>
 
       <section className="final-cta"><p>你的下一份問卷，可以更清楚。</p><h2>把時間留給真正重要的問題。</h2><button className="pill light" onClick={() => go("/register")}>建立第一份問卷</button></section>
     </main>
-    <footer><button className="landing-brand" onClick={() => scrollTo({top:0,behavior:"smooth"})}><span>問</span>問卷所</button><p>讓調查設計回到清楚、誠實與好用。</p><div><a href="#guide">使用指南</a><button onClick={() => go("/admin/login")}>管理者登入</button></div></footer>
+    <footer><button className="landing-brand" onClick={() => scrollTo({ top: 0, behavior: "smooth" })}><span>問</span>問卷所</button><p>讓調查設計回到清楚、誠實與好用。</p><div><a href="#guide">使用指南</a><button onClick={() => go("/admin/login")}>管理者登入</button></div></footer>
   </div>;
 }
