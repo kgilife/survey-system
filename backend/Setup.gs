@@ -36,6 +36,12 @@ function migrateSystem() {
   });
 }
 
+function adminMigrateSystem_(input) {
+  var admin=session_(input.token,'admin');
+  if(admin.role!=='system_admin')throw apiError_('FORBIDDEN','只有系統管理員可以執行資料庫升級。');
+  return migrateSystem();
+}
+
 function migrateLinkedMatrixPrompts_(ss) {
   var sheet=ss.getSheetByName('連結型矩陣問項設定'),existing=rows_(sheet),records=existing.slice();
   rows_(ss.getSheetByName('問項設計')).filter(function(q){return q.type==='linked_matrix';}).forEach(function(q){
