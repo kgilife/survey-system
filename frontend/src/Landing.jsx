@@ -29,6 +29,7 @@ const QUESTION_GUIDE = [
   ["條款同意", "顯示一段內容，要求填答者確認是否同意", "例如使用規範、注意事項、活動聲明、個資告知或授權內容。不同目的的同意事項應分開詢問。", "terms"],
   ["連結型多選題", "依填寫者帳號顯示不同的可複選項目", "例如每人可處理的案件、可參加項目或負責對象不同。項目需依 account 預先設定。", "linked_multi"],
   ["連結型簡答題", "依填寫者帳號顯示不同項目，並逐項輸入文字", "例如對個人負責的案件、設備或任務逐一填寫說明。項目需依 account 預先設定。", "linked_short"],
+  ["連結型矩陣題", "依帳號顯示不同項目，並回答相同的一組問項", "適合讓不同人針對自己負責的據點、對象或案件，逐項回答固定問題。使用者 ID 只用於配對，不會顯示。", "linked_matrix"],
 ];
 
 const GUIDE_GROUPS = [
@@ -37,7 +38,7 @@ const GUIDE_GROUPS = [
   { name: "評分與矩陣", hint: "表達程度、評分或多項對照", items: ["線性刻度", "星級評分", "單選方格", "核取方塊格", "總計分配"] },
   { name: "視覺與多媒體", hint: "透過圖片、位置或手寫內容回答", items: ["檔案／圖片上傳", "簽名", "熱點點擊", "文字螢光筆", "地圖定位"] },
   { name: "進階研究與邏輯", hint: "處理階層、排序、數量與研究型回答", items: ["巢狀選擇", "項目排序", "限量／庫存", "最大差異法", "條款同意"] },
-  { name: "依帳號顯示內容", hint: "為不同填寫者提供不同項目", items: ["連結型多選題", "連結型簡答題"] },
+  { name: "依帳號顯示內容", hint: "為不同填寫者提供不同項目", items: ["連結型多選題", "連結型簡答題", "連結型矩陣題"] },
 ];
 
 function MiniBuilder() {
@@ -80,6 +81,7 @@ const GUIDE_STEPS = {
   "條款同意": ["新增「條款同意題」。", "在「條款內容」輸入完整且可閱讀的文字。", "不同目的的同意事項分成不同題目。", "預覽確認短條款可直接勾選，長條款需捲至底部。"],
   "連結型多選題": ["先到「使用者設定」建立填寫者帳號。", "新增「連結型多選題」，點「編輯連結型選項」。", "從 Excel 貼上 account、value、label 三欄；同一帳號可有多列。", "等候「已自動儲存」，再用不同帳號登入確認各自的複選項目。"],
   "連結型簡答題": ["先到「使用者設定」建立填寫者帳號。", "新增「連結型簡答題」，點「編輯連結型選項」。", "從 Excel 貼上 account、value、label 三欄；每列會成為一個文字輸入項目。", "等候「已自動儲存」，再用不同帳號登入確認各自的輸入項目。"],
+  "連結型矩陣題": ["先到「使用者設定」建立填寫者帳號。", "新增「連結型矩陣題」。", "左側從 Excel 貼上使用者 ID、顯示項目兩欄，右側每列貼上一個固定問項。", "等候自動儲存，再用不同帳號登入確認只看到自己獲配的項目。"],
 };
 const stepFor = (name) => GUIDE_STEPS[name] || ["新增題目並輸入清楚的題目與說明。", "完成題型專屬設定。", "依必要性決定是否必填。", "儲存後實際預覽作答。"];
 
@@ -95,6 +97,7 @@ const SAMPLE_TITLES = {
   signature: "請在下方簽名", heatmap: "請在圖片上點選指定位置", text_highlight: "請選取並標記文字片段",
   location: "請提供一個位置", terms: "請閱讀內容並確認是否同意", linked_multi: "請選擇你可處理的項目",
   linked_short: "請逐項填寫說明",
+  linked_matrix: "請針對負責項目回答固定問項",
 };
 function sampleQuestion(name, type, summary) {
   const base = { id: `guide-${type}`, type, title: SAMPLE_TITLES[type] || summary, description: "以下為示範資料", required: true, options: [option("a", "項目 A"), option("b", "項目 B"), option("c", "項目 C")], config: {} };
@@ -112,6 +115,7 @@ function sampleQuestion(name, type, summary) {
   if (type === "terms") base.config = { terms: "請閱讀這段示範內容，確認理解後再勾選同意。", version: "guide" };
   if (type === "linked_multi") base.options = [option("case-a", "此帳號的項目一"), option("case-b", "此帳號的項目二")];
   if (type === "linked_short") base.options = [option("case-a", "此帳號的項目一"), option("case-b", "此帳號的項目二")];
+  if (type === "linked_matrix") Object.assign(base, { options:[option("site-a","台北據點"),option("site-b","桃園據點")], config:{prompts:[{id:"service",label:"服務品質"},{id:"clean",label:"環境整潔"}]} });
   return base;
 }
 
@@ -123,6 +127,7 @@ function BasicPreview({ q, value, onChange }) {
   if (q.type === "single") return <div className="stack">{q.options.map(o => <label key={o.value}><input type="radio" checked={value === o.value} onChange={() => onChange(o.value)} /> {o.label}</label>)}</div>;
   if (["checkbox", "linked_multi"].includes(q.type)) { const vals = Array.isArray(value) ? value : []; return <div className="stack">{q.options.map(o => <label key={o.value}><input type="checkbox" checked={vals.includes(o.value)} onChange={e => onChange(e.target.checked ? [...vals, o.value] : vals.filter(x => x !== o.value))} /> {o.label}</label>)}</div>; }
   if (q.type === "linked_short") { const vals = value && typeof value === "object" ? value : {}; return <div className="stack">{q.options.map(o => <label className="field" key={o.value}><span>{o.label}</span><input className="input" value={vals[o.value] || ""} onChange={e => onChange({ ...vals, [o.value]: e.target.value })} /></label>)}</div>; }
+  if (q.type === "linked_matrix") { const vals=value&&typeof value==="object"?value:{}; return <div className="table-wrap"><table className="grid-table"><thead><tr><th>項目</th>{q.config.prompts.map(p=><th key={p.id}>{p.label}</th>)}</tr></thead><tbody>{q.options.map(o=><tr key={o.value}><th>{o.label}</th>{q.config.prompts.map(p=><td key={p.id}><input className="input" value={vals[o.value]?.[p.id]||""} onChange={e=>onChange({...vals,[o.value]:{...vals[o.value],[p.id]:e.target.value}})} /></td>)}</tr>)}</tbody></table></div>; }
   if (q.type === "scale") return <div className="stack"><input type="range" min="1" max="5" value={value || 1} onChange={e => onChange(e.target.value)} /><div className="row spread small muted">{q.options.map(o => <span key={o.value}>{o.label}</span>)}</div></div>;
   if (["radio_grid", "checkbox_grid"].includes(q.type)) { const radio = q.type === "radio_grid"; return <div className="table-wrap"><table className="grid-table"><thead><tr><th></th>{q.config.cols.map(c => <th key={c}>{c}</th>)}</tr></thead><tbody>{q.options.map(r => <tr key={r.value}><td>{r.label}</td>{q.config.cols.map(c => <td key={c}><input type={radio ? "radio" : "checkbox"} name={`${q.id}-${r.value}`} /></td>)}</tr>)}</tbody></table></div>; }
   if (q.type === "multi_image") return <label className="dropzone">選擇檔案（單檔 5 MB，最多 5 個）<input hidden type="file" multiple /></label>;

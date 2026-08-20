@@ -8,11 +8,16 @@ import {
   validMaxDiff,
   maxDiffSets,
   maxDiffUtilities,
+  linkedMatrixMissingCells,
 } from "../src/questionLogic.js";
 
 test("Email 格式檢查", () => {
   assert.equal(isEmail("user@example.com"), true);
   assert.equal(isEmail("kgi"), false);
+});
+test("連結型矩陣能找出未填的項目與問項", () => {
+  const items=[{value:"north",label:"北區"},{value:"south",label:"南區"}], prompts=[{id:"service",label:"服務"}];
+  assert.deepEqual(linkedMatrixMissingCells({north:{service:"好"}},items,prompts),[{item:"南區",prompt:"服務"}]);
 });
 test("MaxDiff 產生多輪交叉題組且可計算相對效用", () => {
   const sets = maxDiffSets([{value:"a"},{value:"b"},{value:"c"},{value:"d"}], 3, 4);

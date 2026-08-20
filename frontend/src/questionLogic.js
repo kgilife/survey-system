@@ -52,3 +52,16 @@ export const ADVANCED_OPTION_TYPES = [
   "inventory",
   "maxdiff",
 ];
+
+export const linkedMatrixMissingCells = (value, items, prompts) => {
+  const answers = value && typeof value === "object" ? value : {};
+  const missing = [];
+  (prompts || []).forEach((prompt) =>
+    (items || []).forEach((item) => {
+      const cell = answers[item.value]?.[prompt.id];
+      if (cell === undefined || cell === null || String(cell).trim() === "")
+        missing.push({ item: item.label, prompt: prompt.label });
+    }),
+  );
+  return missing;
+};

@@ -58,6 +58,7 @@ const TYPES = {
   multi_image: "檔案/圖片上傳",
   linked_multi: "連結型多選題",
   linked_short: "連結型簡答題",
+  linked_matrix: "連結型矩陣題",
   image_choice: "圖片選擇題",
   star_rating: "星級評分題",
   cascading: "巢狀選擇題",
@@ -93,7 +94,7 @@ const TYPE_GROUPS = [
   },
   {
     label: "個人化動態",
-    types: ["linked_multi", "linked_short"],
+    types: ["linked_multi", "linked_short", "linked_matrix"],
   },
 ];
 const TABS = [
@@ -1230,6 +1231,7 @@ function QuestionEditor({
           {showLinked && <LinkedEditor {...ctx} questionId={q.id} />}
         </div>
       )}
+      {q.type === "linked_matrix" && <LinkedMatrixEditor {...ctx} q={q} onChange={onChange} />}
       {isGrid && (
         <div className="row">
           <textarea
@@ -1402,6 +1404,45 @@ function LinkedEditor({ admin, projectId, data, setError, questionId }) {
     </div>
   );
 }
+
+function LinkedMatrixEditor({ admin, projectId, data, setError, q, onChange }) {
+  const current = data.linkedOptions.filter((x) => x.question_id === q.id);
+  const others = data.linkedOptions.filter((x) => x.question_id !== q.id);
+  const [assignments, setAssignments] = useState(() => current.map((x) => [x.account, x.option_label].join("\t")).join("\n"));
+  const [status, setStatus] = useState("");
+  const initial = useRef(assignments);
+  useEffect(() => {
+    if (initial.current === assignments) return;
+    setStatus("儲存中...");
+    const timer = setTimeout(async () => {
+      try {
+        const seen = new Set();
+        const records = assignments.split(/\r?\n/).map((line) => line.split("\t").map((v) => v.trim())).filter((parts) => parts.some(Boolean)).map(([account, label], index) => {
+          if (!account || !label) throw new Error(`第 ${index + 1} 列必須包含使用者 ID 與項目名稱`);
+          const key = `${account}\u0000${label}`;
+          if (seen.has(key)) throw new Error(`第 ${index + 1} 列的使用者與項目重複`);
+          seen.add(key);
+          const old = current.find((x) => x.account === account && x.option_label === label) || current[index];
+          return { questionId: q.id, account, value: old?.option_value || `LM_${crypto.randomUUID().slice(0, 12)}`, label, order: index + 1 };
+        });
+        const all = [...others.map((x) => ({ questionId:x.question_id, account:x.account, value:x.option_value, label:x.option_label, order:x.option_order, active:String(x.active)!=="false" })), ...records];
+        await api.adminSaveLinkedOptions({ token: admin.token, projectId, options: all });
+        data.linkedOptions = all.map((x) => ({ question_id:x.questionId, account:x.account, option_value:x.value, option_label:x.label, option_order:x.order, active:x.active }));
+        initial.current = assignments;
+        setStatus("已自動儲存");
+      } catch (error) { setError(error); setStatus("儲存失敗"); }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [assignments]);
+  const prompts = q.config?.prompts || [];
+  return <div className="linked-matrix-editor stack">
+    <div className="row spread"><strong>連結型矩陣設定</strong><span className="muted small">{status}</span></div>
+    <div className="linked-matrix-editor-grid">
+      <div className="field"><label>使用者與顯示項目（Excel 兩欄）</label><p className="muted small">每列：使用者 ID [TAB] 項目名稱；使用者 ID 只用於配對，不會顯示在問卷。</p><textarea className="input" style={{minHeight:180}} placeholder={'A001\t台北據點\nA001\t桃園據點\nA002\t台中據點'} value={assignments} onChange={(e) => setAssignments(e.target.value)} /></div>
+      <div className="field"><label>固定問項（Excel 單欄）</label><p className="muted small">每列一個問項，會依序橫向顯示為矩陣欄位。</p><textarea className="input" style={{minHeight:180}} placeholder={'服務品質\n環境整潔\n改善建議'} value={prompts.map((p) => p.label).join("\n")} onChange={(e) => { const labels=e.target.value.split(/\r?\n/).map((x)=>x.trim()).filter(Boolean); onChange({...q,config:{...q.config,prompts:labels.map((label,i)=>({id:prompts[i]?.id||`P_${crypto.randomUUID().slice(0,8)}`,label}))}}); }} /></div>
+    </div>
+  </div>;
+}
 function Status({ admin, projectId, data }) {
   return (
     <div className="stack">
@@ -1505,6 +1546,7 @@ function Responses({ admin, projectId, data }) {
       multi_image: "檔案/圖片上傳",
       linked_multi: "連結型多選",
       linked_short: "連結型簡答",
+      linked_matrix: "連結型矩陣",
       terms: "條款同意",
     };
     const q = data.schema.questions.find((x) => x.id === r.question_id) || {
@@ -2442,6 +2484,10 @@ function SurveyUI({
       let isBlank = val === undefined || val === null || val === "";
       if (Array.isArray(val)) isBlank = val.length === 0;
       else if (q.type === "terms") isBlank = !val || val.accepted !== true;
+      else if (q.type === "linked_matrix") {
+        const prompts=q.config?.prompts||[], items=q.options||[];
+        isBlank = items.length > 0 && prompts.some((p)=>items.some((o)=>!String(val?.[o.value]?.[p.id]??"").trim()));
+      }
       else if (typeof val === "object" && val !== null) isBlank = Object.keys(val).length === 0;
       
       if (q.required && isBlank) {
@@ -2725,6 +2771,9 @@ function Question({
         ))}
       </div>
     );
+  } else if (q.type === "linked_matrix") {
+    const vals = value && typeof value === "object" ? value : {}, prompts = q.config?.prompts || [];
+    input = <div className="table-wrap linked-matrix-wrap"><table className="grid-table linked-matrix-table"><thead><tr><th>項目</th>{prompts.map((p)=><th key={p.id}>{p.label}</th>)}</tr></thead><tbody>{(q.options||[]).map((o)=><tr key={o.value}><th scope="row">{o.label}</th>{prompts.map((p)=><td key={p.id}><input className="input" aria-label={`${o.label}－${p.label}`} disabled={disabled} value={vals[o.value]?.[p.id] ?? ""} onChange={(e)=>onChange({...vals,[o.value]:{...vals[o.value],[p.id]:e.target.value}})} /></td>)}</tr>)}</tbody></table>{!(q.options||[]).length&&<p className="muted">此帳號目前沒有需要填寫的項目。</p>}</div>;
   } else if (
     ["short", "email", "phone", "number", "date", "time"].includes(q.type)
   ) {

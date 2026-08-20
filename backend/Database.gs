@@ -13,6 +13,7 @@ var PROJECT_SHEETS_ = {
   '問項設計': ['question_id','section_id','question_order','type','title','description','required','config_json','validation_json','active','updated_at'],
   '一般選項設定': ['question_id','option_value','option_label','option_order','next_section_id','active','option_config_json'],
   '連結型選項設定': ['question_id','account','option_value','option_label','option_order','active'],
+  '連結型矩陣問項設定': ['question_id','prompt_id','prompt_label','prompt_order','active'],
   '使用者回答': ['answer_id','account','question_id','answer_value','answer_display','attachment_ids','status','created_at','updated_at','submitted_at','updated_by'],
   '填寫狀態': ['account','status','first_saved_at','last_saved_at','first_submitted_at','last_submitted_at','last_login_at','revision_count','updated_by'],
   '附件紀錄': ['attachment_id','account','question_id','attachment_type','file_name','drive_file_id','file_size','mime_type','uploaded_at','active'],

@@ -502,6 +502,12 @@ th {
   padding: 18px;
   background: #fff;
 }
+.linked-matrix-editor { background:#f9fafc; padding:14px; border:1px solid var(--line); border-radius:10px; }
+.linked-matrix-editor-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.linked-matrix-table th:first-child { position:sticky; left:0; z-index:2; min-width:160px; background:#f7f9fc; }
+.linked-matrix-table td { min-width:180px; }
+.linked-matrix-table td .input { min-width:150px; }
+@media(max-width:700px){.linked-matrix-editor-grid{grid-template-columns:1fr}.linked-matrix-wrap{overflow-x:auto}.linked-matrix-table th:first-child{min-width:125px}}
 
 /* Public landing page */
 .landing { --paper:#f5f5f2; --charcoal:#171817; --lime:#d9ff57; color:var(--charcoal); background:var(--paper); min-height:100vh; }
