@@ -26,6 +26,24 @@ function now_() { return new Date().toISOString(); }
 function withLock_(fn) { var lock = LockService.getScriptLock(); lock.waitLock(30000); try { return fn(); } finally { lock.releaseLock(); } }
 function cleanCell_(value) { return value instanceof Date ? value.toISOString() : value; }
 
+// Google Sheets may interpret digit-only strings as numbers and discard leading zeroes.
+// Keep every non-numeric/boolean database field as plain text before writing values.
+function isPlainTextColumn_(header) {
+  return !{
+    question_order:true, option_order:true, prompt_order:true, field_order:true,
+    file_size:true, initial_stock:true, remaining_stock:true, quantity_delta:true,
+    before_quantity:true, after_quantity:true, revision_count:true,
+    active:true, required:true, statistical_dimension:true
+  }[String(header)];
+}
+
+function formatPlainTextColumns_(sheet, headers, startRow, rowCount) {
+  if (rowCount < 1) return;
+  headers.forEach(function(header, index) {
+    if (isPlainTextColumn_(header)) sheet.getRange(startRow, index + 1, rowCount, 1).setNumberFormat('@');
+  });
+}
+
 function ensureSheets_(ss, definitions) {
   Object.keys(definitions).forEach(function(name) {
     var sheet = ss.getSheetByName(name) || ss.insertSheet(name);
@@ -35,6 +53,7 @@ function ensureSheets_(ss, definitions) {
       var current = sheet.getRange(1, 1, 1, Math.max(headers.length, sheet.getLastColumn())).getValues()[0];
       headers.forEach(function(header, index) { if (!current[index]) sheet.getRange(1, index + 1).setValue(header); });
     }
+    formatPlainTextColumns_(sheet, headers, 2, Math.max(0, sheet.getMaxRows() - 1));
     sheet.setFrozenRows(1);
   });
 }
@@ -58,8 +77,7 @@ function rows_(sheet) {
 
 function append_(sheet, record) {
   var headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
-  var passwordColumn=headers.indexOf('password')+1;
-  if(passwordColumn>0)sheet.getRange(sheet.getLastRow()+1,passwordColumn).setNumberFormat('@');
+  formatPlainTextColumns_(sheet,headers,sheet.getLastRow()+1,1);
   sheet.appendRow(headers.map(function(h) { return record[h] === undefined ? '' : record[h]; })); return record;
 }
 
@@ -67,6 +85,7 @@ function replaceAll_(sheet, records) {
   var last = sheet.getLastRow(); if (last > 1) sheet.getRange(2,1,last-1,sheet.getLastColumn()).clearContent();
   if (!records.length) return;
   var headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
+  formatPlainTextColumns_(sheet,headers,2,records.length);
   sheet.getRange(2,1,records.length,headers.length).setValues(records.map(function(r) { return headers.map(function(h) { return r[h] === undefined ? '' : r[h]; }); }));
 }
 
@@ -81,7 +100,7 @@ function updateWhere_(sheet, predicate, changes) {
   Object.keys(changes).forEach(function(k){
     var c=headers.indexOf(k); if(c<0)return;
     var targets=sheet.getRangeList(matched.map(function(row){return columnName_(c+1)+row;}));
-    if(k==='password')targets.setNumberFormat('@');
+    if(isPlainTextColumn_(k))targets.setNumberFormat('@');
     targets.setValue(changes[k]);
   });
   return true;

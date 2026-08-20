@@ -1418,8 +1418,8 @@ function LinkedMatrixEditor({ admin, projectId, data, setError, q, onChange }) {
   return <div className="linked-matrix-editor stack">
     <div className="row spread"><strong>連結型矩陣設定</strong><span className="muted small">{status}</span></div>
     <div className="linked-matrix-editor-grid">
-      <div className="field"><label>使用者與顯示項目（Excel 兩欄）</label><p className="muted small">每列：使用者 ID [TAB] 項目名稱；使用者 ID 只用於配對，不會顯示在問卷。</p><textarea className="input" style={{minHeight:180}} placeholder={'A001\t台北據點\nA001\t桃園據點\nA002\t台中據點'} value={assignments} onChange={(e) => setAssignments(e.target.value)} /></div>
-      <div className="field"><label>固定問項（Excel 單欄）</label><p className="muted small">每列一個問項，會依序橫向顯示為矩陣欄位。</p><textarea className="input" style={{minHeight:180}} placeholder={'服務品質\n環境整潔\n改善建議'} value={promptText} onChange={(e) => { const text=e.target.value; setPromptText(text); const labels=text.split(/\r?\n/).map((x)=>x.trim()).filter(Boolean); onChange({...q,config:{...q.config,prompts:labels.map((label,i)=>({id:prompts[i]?.id||`P_${crypto.randomUUID().slice(0,8)}`,label}))}}); }} /></div>
+      <div className="field"><label>使用者與顯示項目（Excel 兩欄）</label><p className="muted small">每列：使用者 ID [TAB] 項目名稱；使用者 ID 只用於配對，不會顯示在問卷。儲存於專案 Google Sheet 的「連結型選項設定」分頁，系統不另設字數上限。</p><textarea className="input" style={{minHeight:180}} placeholder={'A001\t台北據點\nA001\t桃園據點\nA002\t台中據點'} value={assignments} onChange={(e) => setAssignments(e.target.value)} /></div>
+      <div className="field"><label>固定問項（Excel 單欄）</label><p className="muted small">每列一個問項，會依序橫向顯示為矩陣欄位。儲存於「連結型矩陣問項設定」分頁。</p><textarea className="input" style={{minHeight:180}} placeholder={'服務品質\n環境整潔\n改善建議'} value={promptText} onChange={(e) => { const text=e.target.value; setPromptText(text); const labels=text.split(/\r?\n/).map((x)=>x.trim()).filter(Boolean); onChange({...q,config:{...q.config,prompts:labels.map((label,i)=>({id:prompts[i]?.id||`P_${crypto.randomUUID().slice(0,8)}`,label}))}}); }} /></div>
     </div>
   </div>;
 }
