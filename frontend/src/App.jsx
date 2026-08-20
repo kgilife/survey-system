@@ -1399,10 +1399,18 @@ function LinkedMatrixEditor({ admin, projectId, data, setError, getSchema, q, on
           const old = current.find((x) => x.account === account && x.option_label === label) || current[index];
           return { questionId: q.id, account, value: old?.option_value || `LM_${crypto.randomUUID().slice(0, 12)}`, label, order: index + 1 };
         });
-        const all = [...others.map((x) => ({ questionId:x.question_id, account:x.account, value:x.option_value, label:x.option_label, order:x.option_order, active:String(x.active)!=="false" })), ...records];
+        const latestSchema = getSchema ? getSchema() : null;
+        const linkedTypes = new Set(["linked_multi", "linked_short", "linked_matrix"]);
+        const validLinkedQuestionIds = latestSchema
+          ? new Set(latestSchema.questions.filter((question) => linkedTypes.has(question.type)).map((question) => question.id))
+          : null;
+        const validOthers = validLinkedQuestionIds
+          ? others.filter((option) => validLinkedQuestionIds.has(option.question_id))
+          : others;
+        const all = [...validOthers.map((x) => ({ questionId:x.question_id, account:x.account, value:x.option_value, label:x.option_label, order:x.option_order, active:String(x.active)!=="false" })), ...records];
         // A newly-created matrix may not exist in Sheets yet. Persist the complete
         // matrix definition first so its assignments cannot race the schema autosave.
-        if (getSchema) await api.adminSaveSchema({ token: admin.token, projectId, schema: getSchema() });
+        if (latestSchema) await api.adminSaveSchema({ token: admin.token, projectId, schema: latestSchema });
         await api.adminSaveLinkedOptions({ token: admin.token, projectId, options: all });
         data.linkedOptions = all.map((x) => ({ question_id:x.questionId, account:x.account, option_value:x.value, option_label:x.label, option_order:x.order, active:x.active }));
         initial.current = assignments;
