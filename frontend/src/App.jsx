@@ -997,7 +997,7 @@ function Builder({ admin, projectId, data, setData, setError, reportSaveState })
           <div className="section-items stack" style={{ display: collapsedSections[s.id] ? "none" : "grid" }}>
             {schema.questions.filter((q) => q.sectionId === s.id).map((q, localIndex, sectionQuestions) => (
               <div key={q.id} className={`question-drop ${dragging?.id === q.id ? "dragging" : ""}`} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (dragging?.type === "question") moveQuestion(dragging.id, s.id, q.id); setDragging(null); }}>
-                <QuestionEditor q={q} sections={schema.sections} questions={schema.questions} questionNumber={`${i + 1}-${localIndex + 1}`} ctx={{ admin, projectId, data, setError }}
+                <QuestionEditor q={q} sections={schema.sections} questions={schema.questions} questionNumber={`${i + 1}-${localIndex + 1}`} ctx={{ admin, projectId, data, setError, getSchema: () => clone(schemaRef.current) }}
                   dragHandle={<button className="drag-grip" draggable onDragStart={(e) => { setDragging({ type: "question", id: q.id }); e.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => setDragging(null)} aria-label={`拖曳題目 ${q.title}`} title="拖曳排序或移到其他區段">⠿</button>}
                   onChange={(v, key = "") => commit((current) => ({ ...current, questions: current.questions.map((x) => x.id === q.id ? v : x) }), key ? `question:${q.id}:${key}` : "")}
                   onMoveTo={(sectionId, beforeId) => moveQuestion(q.id, sectionId, beforeId)}
@@ -1379,7 +1379,7 @@ function LinkedEditor({ admin, projectId, data, setError, questionId }) {
   );
 }
 
-function LinkedMatrixEditor({ admin, projectId, data, setError, q, onChange }) {
+function LinkedMatrixEditor({ admin, projectId, data, setError, getSchema, q, onChange }) {
   const current = data.linkedOptions.filter((x) => x.question_id === q.id);
   const others = data.linkedOptions.filter((x) => x.question_id !== q.id);
   const [assignments, setAssignments] = useState(() => current.map((x) => [x.account, x.option_label].join("\t")).join("\n"));
@@ -1400,11 +1400,17 @@ function LinkedMatrixEditor({ admin, projectId, data, setError, q, onChange }) {
           return { questionId: q.id, account, value: old?.option_value || `LM_${crypto.randomUUID().slice(0, 12)}`, label, order: index + 1 };
         });
         const all = [...others.map((x) => ({ questionId:x.question_id, account:x.account, value:x.option_value, label:x.option_label, order:x.option_order, active:String(x.active)!=="false" })), ...records];
+        // A newly-created matrix may not exist in Sheets yet. Persist the complete
+        // matrix definition first so its assignments cannot race the schema autosave.
+        if (getSchema) await api.adminSaveSchema({ token: admin.token, projectId, schema: getSchema() });
         await api.adminSaveLinkedOptions({ token: admin.token, projectId, options: all });
         data.linkedOptions = all.map((x) => ({ question_id:x.questionId, account:x.account, option_value:x.value, option_label:x.label, option_order:x.order, active:x.active }));
         initial.current = assignments;
         setStatus("已自動儲存");
-      } catch (error) { setError(error); setStatus("儲存失敗"); }
+      } catch (error) {
+        setError(error);
+        setStatus(`儲存失敗：${error?.message || "請稍後重試"}`);
+      }
     }, 1000);
     return () => clearTimeout(timer);
   }, [assignments]);
