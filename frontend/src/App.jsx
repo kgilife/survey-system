@@ -15,6 +15,7 @@ import {
   ADVANCED_OPTION_TYPES,
 } from "./AdvancedQuestions";
 import Landing from "./Landing";
+import { parseUserPaste } from "./userPaste";
 
 const toastEvent = new EventTarget();
 window.toast = (message, type = "success") => {
@@ -629,7 +630,7 @@ function Users({ admin, projectId, data, setData, reload, setError, reportSaveSt
   const [saveStatus, setSaveStatus] = useState(""),
     initialRef = useRef({ fields, labels, accessMode }),
     [importing, setImporting] = useState(false);
-  const preview = useMemo(() => parsePaste(paste, fields), [paste, fields]);
+  const preview = useMemo(() => parseUserPaste(paste, fields, labels), [paste, fields, labels]);
   useEffect(() => {
     reportSaveState("users", JSON.stringify(initialRef.current) !== JSON.stringify({ fields, labels, accessMode }));
   }, [fields, labels, accessMode, saveStatus, reportSaveState]);
@@ -870,33 +871,6 @@ function Users({ admin, projectId, data, setData, reload, setError, reportSaveSt
     </div>
   );
 }
-function parsePaste(text, fields) {
-  const rows = text
-    .trim()
-    .split(/\r?\n/)
-    .filter(Boolean)
-    .map((r) => r.split("\t"));
-  if (!rows.length) return { users: [] };
-  const known = ["account", "password", ...fields.map((f) => f.field_key)],
-    first = rows[0].map((x) => x.trim()),
-    hasHeader = first.some((x) => known.includes(x)),
-    headers = hasHeader ? first : known,
-    body = hasHeader ? rows.slice(1) : rows;
-  return {
-    users: body
-      .map((cols) => {
-        const r = { profile: {} };
-        headers.forEach((h, i) => {
-          if (h === "account" || h === "password")
-            r[h] = (cols[i] || "").trim();
-          else r.profile[h] = (cols[i] || "").trim();
-        });
-        return r;
-      })
-      .filter((x) => x.account),
-  };
-}
-
 function Builder({ admin, projectId, data, setData, setError, reportSaveState }) {
   const [schema, setSchema] = useState(data.schema);
   const schemaRef = useRef(schema), pastRef = useRef([]), futureRef = useRef([]), coalesceRef = useRef({ key: "", time: 0 });
@@ -1435,11 +1409,17 @@ function LinkedMatrixEditor({ admin, projectId, data, setError, q, onChange }) {
     return () => clearTimeout(timer);
   }, [assignments]);
   const prompts = q.config?.prompts || [];
+  const promptLabels = prompts.map((p) => p.label).join("\n");
+  const [promptText, setPromptText] = useState(promptLabels);
+  useEffect(() => {
+    const localLabels = promptText.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).join("\n");
+    if (localLabels !== promptLabels) setPromptText(promptLabels);
+  }, [promptLabels, promptText]);
   return <div className="linked-matrix-editor stack">
     <div className="row spread"><strong>連結型矩陣設定</strong><span className="muted small">{status}</span></div>
     <div className="linked-matrix-editor-grid">
       <div className="field"><label>使用者與顯示項目（Excel 兩欄）</label><p className="muted small">每列：使用者 ID [TAB] 項目名稱；使用者 ID 只用於配對，不會顯示在問卷。</p><textarea className="input" style={{minHeight:180}} placeholder={'A001\t台北據點\nA001\t桃園據點\nA002\t台中據點'} value={assignments} onChange={(e) => setAssignments(e.target.value)} /></div>
-      <div className="field"><label>固定問項（Excel 單欄）</label><p className="muted small">每列一個問項，會依序橫向顯示為矩陣欄位。</p><textarea className="input" style={{minHeight:180}} placeholder={'服務品質\n環境整潔\n改善建議'} value={prompts.map((p) => p.label).join("\n")} onChange={(e) => { const labels=e.target.value.split(/\r?\n/).map((x)=>x.trim()).filter(Boolean); onChange({...q,config:{...q.config,prompts:labels.map((label,i)=>({id:prompts[i]?.id||`P_${crypto.randomUUID().slice(0,8)}`,label}))}}); }} /></div>
+      <div className="field"><label>固定問項（Excel 單欄）</label><p className="muted small">每列一個問項，會依序橫向顯示為矩陣欄位。</p><textarea className="input" style={{minHeight:180}} placeholder={'服務品質\n環境整潔\n改善建議'} value={promptText} onChange={(e) => { const text=e.target.value; setPromptText(text); const labels=text.split(/\r?\n/).map((x)=>x.trim()).filter(Boolean); onChange({...q,config:{...q.config,prompts:labels.map((label,i)=>({id:prompts[i]?.id||`P_${crypto.randomUUID().slice(0,8)}`,label}))}}); }} /></div>
     </div>
   </div>;
 }
