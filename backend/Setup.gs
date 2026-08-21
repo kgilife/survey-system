@@ -7,7 +7,7 @@ function initializeSystem() {
     var masterId=props.getProperty('MASTER_SPREADSHEET_ID'); var ss;
     if(masterId){ try{ss=SpreadsheetApp.openById(masterId);}catch(_){ss=null;} }
     if(!ss){ ss=SpreadsheetApp.create('問卷系統主資料庫'); DriveApp.getFileById(ss.getId()).moveTo(root); props.setProperty('MASTER_SPREADSHEET_ID',ss.getId()); }
-    removeDeprecatedAdminColumns_(ss); ensureSheets_(ss,MASTER_SHEETS_); props.setProperty('SCHEMA_VERSION','3');
+    removeDeprecatedAdminColumns_(ss); ensureSheets_(ss,MASTER_SHEETS_); props.setProperty('SCHEMA_VERSION','4');
     var adminSheet=ss.getSheetByName('管理員設定'); formatAdminPasswordColumn_(adminSheet); var admins=rows_(adminSheet),legacy=admins.find(function(a){return a.email==='kgi';});
     if(!legacy){ var folder=root.createFolder('管理員_kgi'); append_(adminSheet,{admin_id:Utilities.getUuid(),admin_name:'kgi',admin_folder_id:folder.getId(),status:'active',created_at:now_(),last_login_at:'',email:'kgi',password:'03434016',role:'system_admin',email_verified:true,updated_at:now_()}); }
     else updateWhere_(adminSheet,function(a){return a.admin_id===legacy.admin_id;},{admin_name:'kgi',email:'kgi',password:'03434016',role:'system_admin',email_verified:true,status:'active',updated_at:now_()});
@@ -31,8 +31,8 @@ function migrateSystem() {
       try { var projectSheet=SpreadsheetApp.openById(p.spreadsheet_id);ensureSheets_(projectSheet,PROJECT_SHEETS_);migrateLinkedMatrixPrompts_(projectSheet);migrated++; }
       catch(error) { errors.push({projectId:p.project_id,message:String(error&&error.message||error)}); }
     });
-    if(!errors.length)props.setProperty('SCHEMA_VERSION','3');
-    return {ok:!errors.length,data:{version:errors.length?props.getProperty('SCHEMA_VERSION')||'1':'3',migratedProjects:migrated,errors:errors}};
+    if(!errors.length)props.setProperty('SCHEMA_VERSION','4');
+    return {ok:!errors.length,data:{version:errors.length?props.getProperty('SCHEMA_VERSION')||'1':'4',migratedProjects:migrated,errors:errors}};
   });
 }
 
@@ -47,9 +47,10 @@ function migrateLinkedMatrixPrompts_(ss) {
   rows_(ss.getSheetByName('問項設計')).filter(function(q){return q.type==='linked_matrix';}).forEach(function(q){
     if(existing.some(function(p){return p.question_id===q.question_id;}))return;
     var prompts=(parseJson_(q.config_json,{})||{}).prompts||[];
-    prompts.forEach(function(p,i){records.push({question_id:q.question_id,prompt_id:p.id,prompt_label:p.label,prompt_order:i+1,active:true});});
+    prompts.forEach(function(p,i){records.push({question_id:q.question_id,prompt_id:p.id,prompt_label:p.label,prompt_order:i+1,active:true,prompt_type:p.type||'short',prompt_options_json:JSON.stringify(p.options||[]),prompt_required:p.required!==false,prompt_config_json:JSON.stringify(p.config||{})});});
   });
-  if(records.length!==existing.length)replaceAll_(sheet,records);
+  records=records.map(function(p){return Object.assign({},p,{prompt_type:p.prompt_type||'short',prompt_options_json:p.prompt_options_json||'[]',prompt_required:p.prompt_required===''||p.prompt_required===undefined?true:String(p.prompt_required)!=='false',prompt_config_json:p.prompt_config_json||'{}'});});
+  replaceAll_(sheet,records);
 }
 
 function setFrontendUrl(url) { PropertiesService.getScriptProperties().setProperty('FRONTEND_URL',String(url||'').replace(/\/$/,'')); }

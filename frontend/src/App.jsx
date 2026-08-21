@@ -1423,17 +1423,45 @@ function LinkedMatrixEditor({ admin, projectId, data, setError, getSchema, q, on
     return () => clearTimeout(timer);
   }, [assignments]);
   const prompts = q.config?.prompts || [];
-  const promptLabels = prompts.map((p) => p.label).join("\n");
-  const [promptText, setPromptText] = useState(promptLabels);
-  useEffect(() => {
-    const localLabels = promptText.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).join("\n");
-    if (localLabels !== promptLabels) setPromptText(promptLabels);
-  }, [promptLabels, promptText]);
+  const [expanded, setExpanded] = useState(() => new Set(prompts.slice(0, 1).map((p) => p.id)));
+  const setPrompts = (next) => onChange({...q, config:{...q.config, prompts:next}});
+  const updatePrompt = (id, changes) => setPrompts(prompts.map((p) => p.id === id ? {...p, ...changes} : p));
+  const addPrompt = () => {
+    const id = `P_${crypto.randomUUID().slice(0, 8)}`;
+    setPrompts([...prompts, {id, label:"", type:"short", required:true, options:[], config:{}}]);
+    setExpanded((old) => new Set([...old, id]));
+  };
+  const movePrompt = (index, offset) => {
+    const target=index+offset; if(target<0||target>=prompts.length)return;
+    const next=[...prompts]; [next[index],next[target]]=[next[target],next[index]]; setPrompts(next);
+  };
+  const typeLabel = {short:"簡答",single:"單選",checkbox:"複選"};
   return <div className="linked-matrix-editor stack">
     <div className="row spread"><strong>連結型矩陣設定</strong><span className="muted small">{status}</span></div>
     <div className="linked-matrix-editor-grid">
       <div className="field"><label>使用者與顯示項目（Excel 兩欄）</label><p className="muted small">每列：使用者 ID [TAB] 項目名稱；使用者 ID 只用於配對，不會顯示在問卷。儲存於專案 Google Sheet 的「連結型選項設定」分頁，系統不另設字數上限。</p><textarea className="input" style={{minHeight:180}} placeholder={'A001\t台北據點\nA001\t桃園據點\nA002\t台中據點'} value={assignments} onChange={(e) => setAssignments(e.target.value)} /></div>
-      <div className="field"><label>固定問項（Excel 單欄）</label><p className="muted small">每列一個問項，會依序橫向顯示為矩陣欄位。儲存於「連結型矩陣問項設定」分頁。</p><textarea className="input" style={{minHeight:180}} placeholder={'服務品質\n環境整潔\n改善建議'} value={promptText} onChange={(e) => { const text=e.target.value; setPromptText(text); const labels=text.split(/\r?\n/).map((x)=>x.trim()).filter(Boolean); onChange({...q,config:{...q.config,prompts:labels.map((label,i)=>({id:prompts[i]?.id||`P_${crypto.randomUUID().slice(0,8)}`,label}))}}); }} /></div>
+      <div className="field matrix-prompt-editor">
+        <div className="row spread"><div><label>固定問項</label><p className="muted small">每個問項會依序往右顯示為矩陣欄位。</p></div><button type="button" className="btn secondary" onClick={addPrompt}>＋ 新增問項</button></div>
+        {!prompts.length && <div className="matrix-prompt-empty">尚未建立固定問項，請按「新增問項」。</div>}
+        {prompts.map((prompt,index) => {
+          const open=expanded.has(prompt.id), type=prompt.type||"short", options=prompt.options||[];
+          return <div className="matrix-prompt-card" key={prompt.id}>
+            <button type="button" className="matrix-prompt-summary" onClick={()=>setExpanded((old)=>{const next=new Set(old);if(next.has(prompt.id))next.delete(prompt.id);else next.add(prompt.id);return next;})}>
+              <span className="matrix-prompt-number">{index+1}</span><span>{prompt.label||"未命名問項"}</span><span className={`matrix-type-badge ${type}`}>{typeLabel[type]}</span><span>{open?"⌃":"⌄"}</span>
+            </button>
+            {open && <div className="matrix-prompt-body stack">
+              <div className="field"><label>問項名稱</label><input className="input" value={prompt.label||""} placeholder="例如：是否具有經營價值？" onChange={(e)=>updatePrompt(prompt.id,{label:e.target.value})}/></div>
+              <div className="row matrix-prompt-settings">
+                <div className="field"><label>回答類型</label><select className="input" value={type} onChange={(e)=>{const nextType=e.target.value;updatePrompt(prompt.id,{type:nextType,options:nextType==="short"?[]:(options.length?options:[{value:`PO_${crypto.randomUUID().slice(0,8)}`,label:"選項 1"},{value:`PO_${crypto.randomUUID().slice(0,8)}`,label:"選項 2"}])});}}><option value="short">簡答</option><option value="single">單選</option><option value="checkbox">複選</option></select></div>
+                <label className="check matrix-required"><input type="checkbox" checked={prompt.required!==false} onChange={(e)=>updatePrompt(prompt.id,{required:e.target.checked})}/> 此欄必填</label>
+              </div>
+              {type!=="short" && <div className="stack matrix-option-editor"><label>選項</label>{options.map((option,optionIndex)=><div className="row" key={option.value}><span className="matrix-option-number">{optionIndex+1}</span><input className="input" value={option.label||""} placeholder={`選項 ${optionIndex+1}`} onChange={(e)=>updatePrompt(prompt.id,{options:options.map((x,i)=>i===optionIndex?{...x,label:e.target.value}:x)})}/><button type="button" className="btn danger small" disabled={options.length<=2} onClick={()=>updatePrompt(prompt.id,{options:options.filter((_,i)=>i!==optionIndex)})}>刪除</button></div>)}<button type="button" className="btn secondary" onClick={()=>updatePrompt(prompt.id,{options:[...options,{value:`PO_${crypto.randomUUID().slice(0,8)}`,label:""}]})}>＋ 新增選項</button></div>}
+              {type==="short" && <div className="field"><label>提示文字（選填）</label><input className="input" value={prompt.config?.placeholder||""} placeholder="例如：請輸入原因" onChange={(e)=>updatePrompt(prompt.id,{config:{...prompt.config,placeholder:e.target.value}})}/></div>}
+              <div className="row spread matrix-prompt-actions"><div className="row"><button type="button" className="btn secondary small" disabled={index===0} onClick={()=>movePrompt(index,-1)}>上移</button><button type="button" className="btn secondary small" disabled={index===prompts.length-1} onClick={()=>movePrompt(index,1)}>下移</button></div><div className="row"><button type="button" className="btn secondary small" onClick={()=>{const copy={...prompt,id:`P_${crypto.randomUUID().slice(0,8)}`,label:`${prompt.label||"未命名問項"}（複製）`,options:options.map((o)=>({...o,value:`PO_${crypto.randomUUID().slice(0,8)}`}))};setPrompts([...prompts.slice(0,index+1),copy,...prompts.slice(index+1)]);setExpanded((old)=>new Set([...old,copy.id]));}}>複製</button><button type="button" className="btn danger small" onClick={()=>setPrompts(prompts.filter((p)=>p.id!==prompt.id))}>刪除問項</button></div></div>
+            </div>}
+          </div>;
+        })}
+      </div>
     </div>
   </div>;
 }
@@ -2480,7 +2508,7 @@ function SurveyUI({
       else if (q.type === "terms") isBlank = !val || val.accepted !== true;
       else if (q.type === "linked_matrix") {
         const prompts=q.config?.prompts||[], items=q.options||[];
-        isBlank = items.length > 0 && prompts.some((p)=>items.some((o)=>!String(val?.[o.value]?.[p.id]??"").trim()));
+        isBlank = items.length > 0 && prompts.filter((p)=>p.required!==false).some((p)=>items.some((o)=>{const cell=val?.[o.value]?.[p.id];return Array.isArray(cell)?cell.length===0:!String(cell??"").trim();}));
       }
       else if (typeof val === "object" && val !== null) isBlank = Object.keys(val).length === 0;
       
@@ -2767,7 +2795,8 @@ function Question({
     );
   } else if (q.type === "linked_matrix") {
     const vals = value && typeof value === "object" ? value : {}, prompts = q.config?.prompts || [];
-    input = <div className="table-wrap linked-matrix-wrap"><table className="grid-table linked-matrix-table"><thead><tr><th>項目</th>{prompts.map((p)=><th key={p.id}>{p.label}</th>)}</tr></thead><tbody>{(q.options||[]).map((o)=><tr key={o.value}><th scope="row">{o.label}</th>{prompts.map((p)=><td key={p.id}><input className="input" aria-label={`${o.label}－${p.label}`} disabled={disabled} value={vals[o.value]?.[p.id] ?? ""} onChange={(e)=>onChange({...vals,[o.value]:{...vals[o.value],[p.id]:e.target.value}})} /></td>)}</tr>)}</tbody></table>{!(q.options||[]).length&&<p className="muted">此帳號目前沒有需要填寫的項目。</p>}</div>;
+    const setCell=(itemId,promptId,cellValue)=>onChange({...vals,[itemId]:{...vals[itemId],[promptId]:cellValue}});
+    input = <div className="table-wrap linked-matrix-wrap"><table className="grid-table linked-matrix-table"><thead><tr><th>項目</th>{prompts.map((p)=><th key={p.id}>{p.label}{q.required&&p.required!==false&&<span className="required-mark"> *</span>}</th>)}</tr></thead><tbody>{(q.options||[]).map((o)=><tr key={o.value}><th scope="row">{o.label}</th>{prompts.map((p)=>{const type=p.type||"short",cell=vals[o.value]?.[p.id];return <td key={p.id}>{type==="single"?<div className="matrix-cell-options">{(p.options||[]).map((option)=><label className="check" key={option.value}><input type="radio" name={`${q.id}_${o.value}_${p.id}`} disabled={disabled} checked={cell===option.value} onChange={()=>setCell(o.value,p.id,option.value)}/><span>{option.label}</span></label>)}</div>:type==="checkbox"?<div className="matrix-cell-options">{(p.options||[]).map((option)=>{const selected=Array.isArray(cell)&&cell.includes(option.value);return <label className="check" key={option.value}><input type="checkbox" disabled={disabled} checked={selected} onChange={(e)=>setCell(o.value,p.id,e.target.checked?[...(Array.isArray(cell)?cell:[]),option.value]:(Array.isArray(cell)?cell:[]).filter((v)=>v!==option.value))}/><span>{option.label}</span></label>})}</div>:<input className="input" aria-label={`${o.label}－${p.label}`} placeholder={p.config?.placeholder||""} disabled={disabled} value={typeof cell==="string"?cell:""} onChange={(e)=>setCell(o.value,p.id,e.target.value)}/>}</td>})}</tr>)}</tbody></table>{!(q.options||[]).length&&<p className="muted">此帳號目前沒有需要填寫的項目。</p>}</div>;
   } else if (
     ["short", "email", "phone", "number", "date", "time"].includes(q.type)
   ) {

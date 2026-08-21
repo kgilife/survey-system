@@ -507,6 +507,12 @@ th {
 .linked-matrix-table th:first-child { position:sticky; left:0; z-index:2; width:160px; min-width:160px; max-width:160px; white-space:normal; overflow-wrap:anywhere; word-break:break-word; background:#f7f9fc; }
 .linked-matrix-table td { min-width:180px; }
 .linked-matrix-table td .input { min-width:150px; }
+.matrix-prompt-editor{min-width:0}.matrix-prompt-empty{padding:28px 18px;text-align:center;border:1px dashed var(--line);border-radius:10px;color:var(--muted);background:#fff}
+.matrix-prompt-card{overflow:hidden;border:1px solid var(--line);border-radius:12px;background:#fff}.matrix-prompt-card+.matrix-prompt-card{margin-top:10px}
+.matrix-prompt-summary{width:100%;display:grid;grid-template-columns:28px minmax(0,1fr) auto 20px;gap:9px;align-items:center;padding:12px;border:0;background:#fff;color:inherit;text-align:left;cursor:pointer}.matrix-prompt-summary>span:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}.matrix-prompt-number,.matrix-option-number{display:inline-grid;place-items:center;color:var(--muted);font-size:.78rem}
+.matrix-type-badge{padding:4px 9px;border-radius:999px;background:#edf2f7;color:#405064;font-size:.72rem;font-weight:800}.matrix-type-badge.single{background:#e8f0ff;color:#2559a7}.matrix-type-badge.checkbox{background:#f2eaff;color:#6d3ca3}
+.matrix-prompt-body{padding:14px;border-top:1px solid var(--line);background:#fafbfc}.matrix-prompt-settings{align-items:flex-end}.matrix-prompt-settings>.field{flex:1}.matrix-required{padding-bottom:11px;white-space:nowrap}.matrix-option-editor>.row .input{flex:1}.matrix-option-editor>.btn{align-self:flex-start}.matrix-prompt-actions{padding-top:4px;border-top:1px solid var(--line)}
+.btn.small{padding:7px 11px;font-size:.78rem}.matrix-cell-options{display:grid;gap:8px;min-width:170px}.matrix-cell-options .check{align-items:flex-start;white-space:normal}.required-mark{color:#b42318}
 @media(max-width:700px){.linked-matrix-editor-grid{grid-template-columns:1fr}.linked-matrix-wrap{overflow-x:auto}.linked-matrix-table th:first-child{width:125px;min-width:125px;max-width:125px}}
 
 /* Public landing page */
