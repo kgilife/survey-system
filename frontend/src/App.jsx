@@ -202,6 +202,7 @@ export default function App() {
   if (survey)
     return <Survey projectId={survey[1]} loginOnly={Boolean(survey[2])} />;
   if (path === "/") return <Landing />;
+  if (path === "/v2") return <Landing variant="v2" />;
   if (path === "/admin/login") return <LoginPage Header={Header} />;
   if (path === "/register") return <RegisterPage Header={Header} />;
   if (path === "/forgot-password") return <ForgotPage Header={Header} />;
@@ -2257,6 +2258,7 @@ function SurveyLogin({ projectId, onLogin }) {
       }
     } catch (x) {
       setError(x);
+      window.toast(x.message || "登入驗證失敗，請確認帳號與密碼。", "error");
     } finally {
       setBusy(false);
     }
@@ -2329,17 +2331,20 @@ function SurveyForm({ projectId, session, onLogout }) {
   const [data, setData] = useState(null),
     [errorMsg, setErrorMsg] = useState("");
   useEffect(() => {
+    let active = true;
     api
       .respondentSurvey({ token: session.token, projectId })
-      .then((r) => setData(r.data))
+      .then((r) => {
+        if (active) setData(r.data);
+      })
       .catch((e) => {
+        if (!active) return;
         setErrorMsg(e.message);
-        if (e.code === "UNAUTHORIZED") {
-          userSession.clear(projectId);
-          if (onLogout) onLogout();
-          else go(`/survey/${projectId}/login`);
-        }
+        window.toast(e.message || "載入問卷失敗", "error");
       });
+    return () => {
+      active = false;
+    };
   }, [session.token, projectId]);
   if (!data) {
     if (errorMsg)
