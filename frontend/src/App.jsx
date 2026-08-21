@@ -1438,6 +1438,19 @@ function LinkedMatrixEditor({ admin, projectId, data, setError, getSchema, q, on
   const typeLabel = {short:"簡答",single:"單選",checkbox:"複選"};
   return <div className="linked-matrix-editor stack">
     <div className="row spread"><strong>連結型矩陣設定</strong><span className="muted small">{status}</span></div>
+    <fieldset className="matrix-display-style">
+      <legend>填答顯示樣式</legend>
+      <div className="matrix-display-options">
+        <label className={q.config?.displayStyle !== "matrix" ? "selected" : ""}>
+          <input type="radio" name={`matrix-display-${q.id}`} value="list" checked={q.config?.displayStyle !== "matrix"} onChange={()=>onChange({...q,config:{...q.config,displayStyle:"list"}})}/>
+          <span><strong>條列</strong><small>依項目分成卡片，手機填寫較方便（預設）</small></span>
+        </label>
+        <label className={q.config?.displayStyle === "matrix" ? "selected" : ""}>
+          <input type="radio" name={`matrix-display-${q.id}`} value="matrix" checked={q.config?.displayStyle === "matrix"} onChange={()=>onChange({...q,config:{...q.config,displayStyle:"matrix"}})}/>
+          <span><strong>矩陣</strong><small>項目為列、固定問項為欄，適合寬螢幕</small></span>
+        </label>
+      </div>
+    </fieldset>
     <div className="linked-matrix-editor-grid">
       <div className="field"><label>使用者與顯示項目（Excel 兩欄）</label><p className="muted small">每列：使用者 ID [TAB] 項目名稱；使用者 ID 只用於配對，不會顯示在問卷。儲存於專案 Google Sheet 的「連結型選項設定」分頁，系統不另設字數上限。</p><textarea className="input" style={{minHeight:180}} placeholder={'A001\t台北據點\nA001\t桃園據點\nA002\t台中據點'} value={assignments} onChange={(e) => setAssignments(e.target.value)} /></div>
       <div className="field matrix-prompt-editor">
@@ -2796,7 +2809,11 @@ function Question({
   } else if (q.type === "linked_matrix") {
     const vals = value && typeof value === "object" ? value : {}, prompts = q.config?.prompts || [];
     const setCell=(itemId,promptId,cellValue)=>onChange({...vals,[itemId]:{...vals[itemId],[promptId]:cellValue}});
-    input = <div className="table-wrap linked-matrix-wrap"><table className="grid-table linked-matrix-table"><thead><tr><th>項目</th>{prompts.map((p)=><th key={p.id}>{p.label}{q.required&&p.required!==false&&<span className="required-mark"> *</span>}</th>)}</tr></thead><tbody>{(q.options||[]).map((o)=><tr key={o.value}><th scope="row">{o.label}</th>{prompts.map((p)=>{const type=p.type||"short",cell=vals[o.value]?.[p.id];return <td key={p.id}>{type==="single"?<div className="matrix-cell-options">{(p.options||[]).map((option)=><label className="check" key={option.value}><input type="radio" name={`${q.id}_${o.value}_${p.id}`} disabled={disabled} checked={cell===option.value} onChange={()=>setCell(o.value,p.id,option.value)}/><span>{option.label}</span></label>)}</div>:type==="checkbox"?<div className="matrix-cell-options">{(p.options||[]).map((option)=>{const selected=Array.isArray(cell)&&cell.includes(option.value);return <label className="check" key={option.value}><input type="checkbox" disabled={disabled} checked={selected} onChange={(e)=>setCell(o.value,p.id,e.target.checked?[...(Array.isArray(cell)?cell:[]),option.value]:(Array.isArray(cell)?cell:[]).filter((v)=>v!==option.value))}/><span>{option.label}</span></label>})}</div>:<input className="input" aria-label={`${o.label}－${p.label}`} placeholder={p.config?.placeholder||""} disabled={disabled} value={typeof cell==="string"?cell:""} onChange={(e)=>setCell(o.value,p.id,e.target.value)}/>}</td>})}</tr>)}</tbody></table>{!(q.options||[]).length&&<p className="muted">此帳號目前沒有需要填寫的項目。</p>}</div>;
+    const cellInput=(o,p)=>{const type=p.type||"short",cell=vals[o.value]?.[p.id];return type==="single"?<div className="matrix-cell-options">{(p.options||[]).map((option)=><label className="check" key={option.value}><input type="radio" name={`${q.id}_${o.value}_${p.id}`} disabled={disabled} checked={cell===option.value} onChange={()=>setCell(o.value,p.id,option.value)}/><span>{option.label}</span></label>)}</div>:type==="checkbox"?<div className="matrix-cell-options">{(p.options||[]).map((option)=>{const selected=Array.isArray(cell)&&cell.includes(option.value);return <label className="check" key={option.value}><input type="checkbox" disabled={disabled} checked={selected} onChange={(e)=>setCell(o.value,p.id,e.target.checked?[...(Array.isArray(cell)?cell:[]),option.value]:(Array.isArray(cell)?cell:[]).filter((v)=>v!==option.value))}/><span>{option.label}</span></label>})}</div>:<input className="input" aria-label={`${o.label}－${p.label}`} placeholder={p.config?.placeholder||""} disabled={disabled} value={typeof cell==="string"?cell:""} onChange={(e)=>setCell(o.value,p.id,e.target.value)}/>};
+    const empty=!(q.options||[]).length&&<p className="muted">此帳號目前沒有需要填寫的項目。</p>;
+    input = q.config?.displayStyle === "matrix"
+      ? <div className="table-wrap linked-matrix-wrap"><table className="grid-table linked-matrix-table"><thead><tr><th>項目</th>{prompts.map((p)=><th key={p.id}>{p.label}{q.required&&p.required!==false&&<span className="required-mark"> *</span>}</th>)}</tr></thead><tbody>{(q.options||[]).map((o)=><tr key={o.value}><th scope="row">{o.label}</th>{prompts.map((p)=><td key={p.id}>{cellInput(o,p)}</td>)}</tr>)}</tbody></table>{empty}</div>
+      : <div className="linked-matrix-list">{(q.options||[]).map((o,index)=><section className="linked-matrix-item" key={o.value} aria-labelledby={`${q.id}-${o.value}-title`}><header><span className="linked-matrix-item-number">{index+1}</span><h4 id={`${q.id}-${o.value}-title`}>{o.label}</h4></header><div className="linked-matrix-item-fields">{prompts.map((p,promptIndex)=><fieldset className="linked-matrix-list-field" key={p.id}><legend><span>Q{promptIndex+1}.</span> {p.label}{q.required&&p.required!==false&&<span className="required-mark"> *</span>}</legend>{cellInput(o,p)}</fieldset>)}</div></section>)}{empty}</div>;
   } else if (
     ["short", "email", "phone", "number", "date", "time"].includes(q.type)
   ) {
