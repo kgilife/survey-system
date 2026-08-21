@@ -26,6 +26,14 @@ function now_() { return new Date().toISOString(); }
 function withLock_(fn) { var lock = LockService.getScriptLock(); lock.waitLock(30000); try { return fn(); } finally { lock.releaseLock(); } }
 function cleanCell_(value) { return value instanceof Date ? value.toISOString() : value; }
 
+function cleanCellForColumn_(header, value) {
+  var cleaned = cleanCell_(value);
+  // Formatting a pre-existing numeric Sheet cell as plain text does not change
+  // the value returned by getValues(). Normalize text columns while reading so
+  // legacy digit-only accounts/IDs compare the same as form input.
+  return cleaned !== '' && isPlainTextColumn_(header) ? String(cleaned) : cleaned;
+}
+
 // Google Sheets may interpret digit-only strings as numbers and discard leading zeroes.
 // Keep every non-numeric/boolean database field as plain text before writing values.
 function isPlainTextColumn_(header) {
@@ -71,7 +79,7 @@ function rows_(sheet) {
   if (values.length < 2) return [];
   var headers = values.shift().map(String);
   return values.filter(function(row) { return row.some(function(v) { return v !== ''; }); }).map(function(row) {
-    var item = {}; headers.forEach(function(h, i) { item[h] = cleanCell_(row[i]); }); return item;
+    var item = {}; headers.forEach(function(h, i) { item[h] = cleanCellForColumn_(h, row[i]); }); return item;
   });
 }
 
@@ -93,7 +101,7 @@ function updateWhere_(sheet, predicate, changes) {
   var values = sheet.getDataRange().getValues(); if (values.length < 2) return false;
   var headers = values[0].map(String),matched=[];
   for (var r=1; r<values.length; r++) {
-    var item={}; headers.forEach(function(h,i){ item[h]=cleanCell_(values[r][i]); });
+    var item={}; headers.forEach(function(h,i){ item[h]=cleanCellForColumn_(h,values[r][i]); });
     if (predicate(item)) matched.push(r+1);
   }
   if (!matched.length) return false;

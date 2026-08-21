@@ -2199,6 +2199,7 @@ function SurveyLogin({ projectId }) {
   }, [projectId]);
   async function login(e) {
     e.preventDefault();
+    setError(null);
     setBusy(true);
     try {
       const r = await api.respondentLogin({ projectId, ...form });
@@ -2246,7 +2247,9 @@ function SurveyLogin({ projectId }) {
           <h1>{meta?.name || "載入問卷…"}</h1>
           <p>{meta?.description || "請輸入驗證資訊以開始填寫"}</p>
         </header>
-        <ErrorBox error={error} />
+        <div role="alert" aria-live="polite">
+          <ErrorBox error={error} />
+        </div>
         <Field label={meta?.accountLabel || "帳號"}>
           <input
             className="input"

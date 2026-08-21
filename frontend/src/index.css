@@ -55,13 +55,17 @@ a {
   font-weight: 800;
 }
 .brand-mark {
-  width: 35px;
-  height: 35px;
-  border-radius: 11px;
-  background: linear-gradient(135deg, var(--brand), #29a3a3);
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid #171817;
+  border-radius: 50%;
+  background: transparent;
   display: grid;
   place-items: center;
-  color: #fff;
+  color: #171817;
+  font-size: 0.85rem;
+  font-weight: 800;
+  flex-shrink: 0;
 }
 .page {
   width: min(1200px, calc(100% - 32px));
@@ -869,7 +873,7 @@ th {
 
 /* 問卷所：產品介面與公開網站共用的品牌語言 */
 .topbar{height:66px;background:rgba(245,245,242,.92);backdrop-filter:blur(18px)}
-.brand-mark{width:34px;height:34px;border-radius:50%;background:#171817}
+.brand-mark{width:28px;height:28px;border:1px solid #111;border-radius:50%;background:transparent;color:#111;font-size:.8rem;display:grid;place-items:center;font-weight:800;flex-shrink:0}
 .brand-context{display:block;margin-top:1px;color:var(--muted);font-size:.65rem;font-weight:600;letter-spacing:.08em}
 .card{border-radius:18px}.hero{background:#171817;border-radius:22px}.btn{border-radius:999px}.btn.secondary{background:#d9ff57;color:#171817}
 .survey-head{background:#171817}.progress>div{background:#d9ff57}
