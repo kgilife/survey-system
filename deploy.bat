@@ -1,32 +1,31 @@
 @echo off
-chcp 65001 >nul
+setlocal
 echo ==================================================
-echo [1/2] 正在自動部署 Google Apps Script 後端...
+echo [1/2] Deploying Google Apps Script Backend...
 echo ==================================================
 
 set "PY_CMD=python"
-where python >nul 2>nul
-if errorlevel 1 (
-    if exist "C:\DevTools\Python312\python.exe" (
-        set "PY_CMD=C:\DevTools\Python312\python.exe"
-    ) else if exist "%LOCALAPPDATA%\Programs\Python\Launcher\py.exe" (
-        set "PY_CMD=%LOCALAPPDATA%\Programs\Python\Launcher\py.exe"
-    )
+if exist "C:\DevTools\Python312\python.exe" (
+    set "PY_CMD=C:\DevTools\Python312\python.exe"
+) else if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" (
+    set "PY_CMD=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
+) else if exist "%LOCALAPPDATA%\Programs\Python\Launcher\py.exe" (
+    set "PY_CMD=%LOCALAPPDATA%\Programs\Python\Launcher\py.exe"
 )
 
 "%PY_CMD%" "%~dp0backend\deploy_gas.py"
 if errorlevel 1 (
     echo.
-    echo [警告] GAS 部署失敗，請檢查上方錯誤訊息！
+    echo [WARNING] GAS deployment failed. Please check the error above.
     echo.
 ) else (
     echo.
-    echo [成功] GAS 後端部署完成！
+    echo [SUCCESS] GAS backend deployed successfully!
     echo.
 )
 
 echo ==================================================
-echo [2/2] 正在推送前端程式碼至 GitHub (觸發 GitHub Pages)...
+echo [2/2] Pushing code to GitHub (GitHub Pages)...
 echo ==================================================
 set "GITHUB_TOKEN="
 git add .
@@ -34,7 +33,7 @@ git commit -m "Auto deploy"
 git push origin master
 
 echo ==================================================
-echo [完成] 程式碼已推送至 GitHub master 分支！
-echo GitHub Actions 將自動建置並發布前端至 GitHub Pages。
+echo [DONE] Code pushed to GitHub master branch!
+echo GitHub Actions will automatically deploy GitHub Pages.
 echo ==================================================
 pause
