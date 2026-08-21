@@ -113,7 +113,14 @@ const TABS = [
 let routeNavigationBlocker = null;
 const go = (path) => {
   const request = new CustomEvent("app:navigate-request", { detail: { path }, cancelable: true });
-  if (window.dispatchEvent(request)) location.hash = path;
+  if (window.dispatchEvent(request)) {
+    const currentHash = location.hash.replace(/^#/, "");
+    if (currentHash === path) {
+      window.dispatchEvent(new Event("hashchange"));
+    } else {
+      location.hash = path;
+    }
+  }
 };
 const fmt = (v) => (v ? new Date(v).toLocaleString("zh-TW") : "—");
 const imageUrl = (url = "") => {
@@ -122,14 +129,14 @@ const imageUrl = (url = "") => {
 };
 function usePath() {
   const read = () => {
-    if (location.hash.startsWith("#/")) return location.hash.slice(1);
+    if (location.hash.startsWith("#/")) return location.hash.slice(1).split("?")[0];
     const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
     let pathname = location.pathname;
     if (base && pathname.startsWith(base)) {
       pathname = pathname.slice(base.length);
     }
     if (pathname && pathname !== "/" && pathname !== "") {
-      return pathname.startsWith("/") ? pathname : "/" + pathname;
+      return (pathname.startsWith("/") ? pathname : "/" + pathname).split("?")[0];
     }
     return "/";
   };
@@ -2168,11 +2175,42 @@ function SimpleTable({ rows = [], columns, renderAction }) {
 }
 
 function Survey({ projectId, loginOnly }) {
-  const session = userSession.get(projectId);
-  if (loginOnly || !session) return <><SurveyLogin projectId={projectId} /><ToastContainer /></>;
-  return <><SurveyForm projectId={projectId} session={session} /><ToastContainer /></>;
+  const [session, setSession] = useState(() => userSession.get(projectId));
+
+  useEffect(() => {
+    setSession(userSession.get(projectId));
+  }, [projectId, loginOnly]);
+
+  if (loginOnly || !session) {
+    return (
+      <>
+        <SurveyLogin
+          projectId={projectId}
+          onLogin={(newSession) => {
+            setSession(newSession);
+            go(`/survey/${projectId}`);
+          }}
+        />
+        <ToastContainer />
+      </>
+    );
+  }
+  return (
+    <>
+      <SurveyForm
+        projectId={projectId}
+        session={session}
+        onLogout={() => {
+          userSession.clear(projectId);
+          setSession(null);
+          go(`/survey/${projectId}/login`);
+        }}
+      />
+      <ToastContainer />
+    </>
+  );
 }
-function SurveyLogin({ projectId }) {
+function SurveyLogin({ projectId, onLogin }) {
   const [meta, setMeta] = useState(null),
     [form, setForm] = useState({ account: "", password: "" }),
     [error, setError] = useState(null),
@@ -2189,22 +2227,34 @@ function SurveyLogin({ projectId }) {
             const res = await api.respondentGuestLogin({ projectId, guestId });
             localStorage.setItem(`survey_guest_${projectId}`, res.data.account);
             userSession.set(projectId, res.data);
-            go(`/survey/${projectId}`);
+            if (onLogin) {
+              onLogin(res.data);
+            } else {
+              go(`/survey/${projectId}`);
+            }
           } catch (x) {
             setError(x);
           }
         }
       })
       .catch(setError);
-  }, [projectId]);
+  }, [projectId, onLogin]);
   async function login(e) {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      const r = await api.respondentLogin({ projectId, ...form });
+      const r = await api.respondentLogin({
+        projectId,
+        account: form.account.trim(),
+        password: form.password,
+      });
       userSession.set(projectId, r.data);
-      go(`/survey/${projectId}`);
+      if (onLogin) {
+        onLogin(r.data);
+      } else {
+        go(`/survey/${projectId}`);
+      }
     } catch (x) {
       setError(x);
     } finally {
@@ -2275,7 +2325,7 @@ function SurveyLogin({ projectId }) {
   );
 }
 
-function SurveyForm({ projectId, session }) {
+function SurveyForm({ projectId, session, onLogout }) {
   const [data, setData] = useState(null),
     [errorMsg, setErrorMsg] = useState("");
   useEffect(() => {
@@ -2286,10 +2336,11 @@ function SurveyForm({ projectId, session }) {
         setErrorMsg(e.message);
         if (e.code === "UNAUTHORIZED") {
           userSession.clear(projectId);
-          go(`/survey/${projectId}/login`);
+          if (onLogout) onLogout();
+          else go(`/survey/${projectId}/login`);
         }
       });
-  }, []);
+  }, [session.token, projectId]);
   if (!data) {
     if (errorMsg)
       return (
@@ -2298,7 +2349,11 @@ function SurveyForm({ projectId, session }) {
           <div className="alert error">{errorMsg}</div>
           <button
             className="btn primary"
-            onClick={() => go(`/survey/${projectId}/login`)}
+            onClick={() => {
+              userSession.clear(projectId);
+              if (onLogout) onLogout();
+              else go(`/survey/${projectId}/login`);
+            }}
           >
             重新登入
           </button>
@@ -2313,7 +2368,8 @@ function SurveyForm({ projectId, session }) {
       initialAnswers={data.answers || {}}
       onLogout={() => {
         userSession.clear(projectId);
-        go(`/survey/${projectId}/login`);
+        if (onLogout) onLogout();
+        else go(`/survey/${projectId}/login`);
       }}
       onSave={async (answers, submit, rev) => {
         const action = submit ? "respondentSubmit" : "respondentSave";
