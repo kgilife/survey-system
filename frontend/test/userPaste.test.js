@@ -26,3 +26,16 @@ test("沒有表頭時仍會匯入第一筆資料", () => {
   const result = parseUserPaste("A001\t0101\t王小明", fields);
   assert.equal(result.users[0].account, "A001");
 });
+
+test("使用者匯入包含額外多欄位時會完整保留各欄位資訊", () => {
+  const result = parseUserPaste("帳號\t密碼\t姓名\t部門\t職稱\nA001\t0101\t王小明\t行銷部\t專員", []);
+  assert.deepEqual(result.users, [{
+    account: "A001",
+    password: "0101",
+    profile: {
+      姓名: "王小明",
+      部門: "行銷部",
+      職稱: "專員"
+    }
+  }]);
+});

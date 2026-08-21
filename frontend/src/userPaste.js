@@ -24,7 +24,7 @@ export function parseUserPaste(text, fields = [], systemLabels = {}) {
   const hasHeader = resolvedFirst[0] === "account";
   const defaultHeaders = ["account", "password", ...fields.map((field) => field.field_key)];
   const headers = hasHeader
-    ? first.map((cell, index) => resolvedFirst[index] || cell || defaultHeaders[index])
+    ? first.map((cell, index) => resolvedFirst[index] || cell || defaultHeaders[index] || `欄位${index + 1}`)
     : defaultHeaders;
   const body = hasHeader ? rows.slice(1) : rows;
 
