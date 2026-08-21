@@ -820,7 +820,28 @@ function Users({ admin, projectId, data, setData, reload, setError, reportSaveSt
       ))}
       <hr />
       <h2>Excel／TXT 批次貼上</h2>
-      <div className="howto-note"><strong>第一次使用？照這 4 步就好</strong><ol><li>在 Excel 第一列輸入欄位名稱：account、password、姓名、部門。</li><li>從第二列開始，每一列放一位使用者；account 和 password 必須填寫。</li><li>選取所有資料後按 Ctrl+C（Mac 按 ⌘C）。</li><li>點下方大輸入框，再按 Ctrl+V（Mac 按 ⌘V）。確認筆數後按「確認匯入」。</li></ol><span>小提醒：第一次操作建議先貼 2 筆測試。系統以 Excel 的欄格分欄、每一列視為一位使用者。</span></div>
+      <div className="howto-note">
+        <strong>第一次使用？照這 4 步就好</strong>
+        <ol>
+          <li>
+            在 Excel 第一列輸入欄位名稱：<strong>最少只需 <code>account</code> 與 <code>password</code>（或中文「帳號」、「密碼」）兩欄即可匯入</strong>。若有需要，可在後方自由增加備註欄位（例如：<code>姓名</code>、<code>部門</code>、<code>組別</code>等）。
+          </li>
+          <li>
+            從第二列開始，每一列放一位使用者；<code>account</code> 和 <code>password</code> 必須填寫，後方備註欄位為選填。
+          </li>
+          <li>選取所有資料後按 Ctrl+C（Mac 按 ⌘C）複製。</li>
+          <li>點下方大輸入框，再按 Ctrl+V（Mac 按 ⌘V）貼上。確認筆數與重複處理模式後按「確認匯入」。</li>
+        </ol>
+        <div style={{ marginTop: "10px", fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.6 }}>
+          <strong>💡 備註欄位如何顯示與應用？</strong>
+          <ul style={{ margin: "4px 0 6px", paddingLeft: "20px" }}>
+            <li><strong>名單列表顯示</strong>：匯入後會自動擴充並直接顯示在下方的「使用者名單」表格中，方便識別帳號對應的使用者資訊（如姓名、部門）。</li>
+            <li><strong>統計分析維度</strong>：若上方自訂欄位有勾選「統計」，系統將自動以該欄位作為統計分析的群組篩選與填寫率統計。</li>
+            <li><strong>名單匯出</strong>：下載使用者名單或未填寫名單時，所有備註欄位皆會一併完整匯出。</li>
+          </ul>
+          <span>小提醒：第一次操作建議先貼 1～2 筆測試。系統以 Excel 的欄格分欄、每一列視為一位使用者。</span>
+        </div>
+      </div>
       <textarea
         className="input"
         value={paste}
