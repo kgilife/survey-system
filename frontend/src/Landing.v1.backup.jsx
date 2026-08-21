@@ -145,7 +145,7 @@ function AnswerPreview({ name, summary, type }) {
   </div>;
 }
 
-export default function Landing({ variant = "v2" }) {
+export default function Landing({ variant = "v1" }) {
   const v2 = variant === "v2";
   const [query, setQuery] = useState("");
   const list = useMemo(() => QUESTION_GUIDE.filter(x => x.join(" ").includes(query.trim())), [query]);
@@ -195,3 +195,5 @@ export default function Landing({ variant = "v2" }) {
     <footer><button className="landing-brand" onClick={() => scrollTo({ top: 0, behavior: "smooth" })}><span>問</span>問卷所</button><p>{v2 ? "建立問卷、管理填答者、追蹤回收結果。" : "讓調查設計回到清楚、誠實與好用。"}</p><div><a href="#guide">使用指南</a><button onClick={() => go("/admin/login")}>管理者登入</button></div></footer>
   </div>;
 }
+
+

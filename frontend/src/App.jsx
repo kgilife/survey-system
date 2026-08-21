@@ -202,7 +202,6 @@ export default function App() {
   if (survey)
     return <Survey projectId={survey[1]} loginOnly={Boolean(survey[2])} />;
   if (path === "/") return <Landing />;
-  if (path === "/v2") return <Landing variant="v2" />;
   if (path === "/admin/login") return <LoginPage Header={Header} />;
   if (path === "/register") return <RegisterPage Header={Header} />;
   if (path === "/forgot-password") return <ForgotPage Header={Header} />;
