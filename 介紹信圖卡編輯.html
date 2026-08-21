@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
+    background-color: #f8fafc;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    -webkit-font-smoothing: antialiased;
+  }
+  .card-container {
+    width: 680px;
+    background: #ffffff;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.06), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+    border: 1px solid #e2e8f0;
+  }
+  
+  /* Top Brand Header */
+  .brand-bar {
+    padding: 18px 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #ffffff;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .brand-logo-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, #004b87 0%, #0088cc 100%);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 900;
+    font-size: 19px;
+    box-shadow: 0 2px 8px rgba(0, 75, 135, 0.22);
+  }
+  .brand-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.2px;
+  }
+  .brand-tag {
+    background: #eff6ff;
+    color: #0284c7;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid #bfdbfe;
+    letter-spacing: 0.3px;
+  }
+
+  /* Hero Banner */
+  .hero-banner {
+    background: linear-gradient(135deg, #004b87 0%, #0b6cb8 55%, #0098a6 100%);
+    color: #ffffff;
+    padding: 32px 28px 28px;
+    text-align: center;
+  }
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 12px;
+    letter-spacing: 0.5px;
+  }
+  .hero-title {
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.35;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.12);
+  }
+  .hero-subtitle {
+    font-size: 13.5px;
+    color: #e0f2fe;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    line-height: 1.5;
+  }
+
+  /* Content Body */
+  .content-body {
+    padding: 28px 30px 24px;
+    background: #ffffff;
+  }
+
+  .salutation {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 10px;
+  }
+  .intro-text {
+    font-size: 13.5px;
+    color: #475569;
+    line-height: 1.7;
+    margin-bottom: 24px;
+  }
+
+  /* Section Title */
+  .section-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #f1f5f9;
+  }
+  .section-icon {
+    font-size: 17px;
+  }
+
+  /* Feature Grid */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .feature-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 15px 13px;
+    text-align: left;
+  }
+  .feature-box-icon {
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+  .feature-box-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 5px;
+  }
+  .feature-box-desc {
+    font-size: 11.5px;
+    color: #64748b;
+    line-height: 1.5;
+  }
+
+  /* 5-Step Workflow */
+  .steps-container {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px 14px;
+    margin-bottom: 26px;
+  }
+  .steps-flex {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .step-item {
+    text-align: center;
+    flex: 1;
+  }
+  .step-num {
+    width: 24px;
+    height: 24px;
+    background: #004b87;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 800;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 6px;
+  }
+  .step-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 2px;
+  }
+  .step-desc {
+    font-size: 10.5px;
+    color: #64748b;
+    line-height: 1.3;
+  }
+  .step-arrow {
+    color: #cbd5e1;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 0 4px;
+    margin-bottom: 12px;
+  }
+
+  /* Comparison Table */
+  .comparison-section {
+    margin-bottom: 24px;
+  }
+  .table-wrapper {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .comp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11.5px;
+    text-align: center;
+  }
+  .comp-table th {
+    padding: 10px 8px;
+    font-weight: 700;
+    background: #f1f5f9;
+    color: #334155;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .comp-table th.highlight-col-header {
+    background: #004b87;
+    color: #ffffff;
+    font-size: 12px;
+  }
+  .comp-table td {
+    padding: 9px 8px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #475569;
+  }
+  .comp-table tr:last-child td {
+    border-bottom: none;
+  }
+  .comp-table tr:nth-child(even) td {
+    background-color: #fafafa;
+  }
+  .comp-table td.highlight-col {
+    background-color: #f0f9ff !important;
+    color: #0369a1;
+    font-weight: 700;
+  }
+  .comp-table td.feature-name {
+    text-align: left;
+    padding-left: 12px;
+    font-weight: 600;
+    color: #1e293b;
+  }
+  .badge-yes {
+    color: #059669;
+    font-weight: 700;
+  }
+  .badge-no {
+    color: #94a3b8;
+  }
+  .badge-warn {
+    color: #d97706;
+  }
+
+  /* CTA Button & Links */
+  .cta-container {
+    text-align: center;
+    padding: 20px 20px 12px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 12px;
+    margin-bottom: 20px;
+  }
+  .cta-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 800;
+    padding: 12px 34px;
+    border-radius: 30px;
+    text-decoration: none;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+    margin-bottom: 10px;
+  }
+  .cta-link-hint {
+    font-size: 11.5px;
+    color: #047857;
+    word-break: break-all;
+  }
+
+  /* Footer */
+  .footer-bar {
+    padding: 16px 28px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: #64748b;
+  }
+  .footer-note {
+    line-height: 1.4;
+  }
+</style>
+</head>
+<body>
+
+<div class="card-container">
+
+  <!-- Top Brand Header -->
+  <div class="brand-bar">
+    <div class="brand-logo-area">
+      <div class="logo-icon">📊</div>
+      <div class="brand-title">問卷調查管理系統</div>
+    </div>
+    <div class="brand-tag">2026.08 最新版</div>
+  </div>
+
+  <!-- Hero Banner -->
+  <div class="hero-banner">
+    <div class="hero-badge">🚀 新系統上線推薦</div>
+    <div class="hero-title">全新問卷調查管理系統・快速入門</div>
+    <div class="hero-subtitle">零程式門檻・雙模式存取・全方位功能完全開放使用</div>
+  </div>
+
+  <!-- Content Body -->
+  <div class="content-body">
+    <div class="salutation">親愛的同仁／使用者 您好：</div>
+    <div class="intro-text">
+      歡迎使用全新的「<strong>問卷調查管理系統</strong>」！本系統專為現代化問卷調查與資料收集設計，無須任何程式背景，只需瀏覽器點擊與拖曳，即可快速完成問卷設計、名單發布與即時統計分析。
+    </div>
+
+    <!-- Section 1: Core Highlights -->
+    <div class="section-heading">
+      <span class="section-icon">🌟</span>
+      <span>三大核心特色亮點</span>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-box">
+        <div class="feature-box-icon">✍️</div>
+        <div class="feature-box-title">24 種多元題型</div>
+        <div class="feature-box-desc">支援電子手繪簽名、檔案/照片上傳、圖片熱點標記與限量名額自動扣除。</div>
+      </div>
+      <div class="feature-box">
+        <div class="feature-box-icon">🔐</div>
+        <div class="feature-box-title">靈活雙存取模式</div>
+        <div class="feature-box-desc">支援指定名單帳密登入與公開免登入；支援中途暫存與跨裝置接續網址。</div>
+      </div>
+      <div class="feature-box">
+        <div class="feature-box-icon">📊</div>
+        <div class="feature-box-title">Excel 匯出防亂碼</div>
+        <div class="feature-box-desc">下載 CSV 雙擊直接開啟，繁中 100% 不亂碼；內建多維度交叉統計圖表。</div>
+      </div>
+    </div>
+
+    <!-- Section 2: 5-Step Workflow -->
+    <div class="section-heading">
+      <span class="section-icon">⚡</span>
+      <span>管理員 5 步驟極速發布</span>
+    </div>
+
+    <div class="steps-container">
+      <div class="steps-flex">
+        <div class="step-item">
+          <div class="step-num">1</div>
+          <div class="step-label">登入建立</div>
+          <div class="step-desc">點擊＋新增專案</div>
+        </div>
+        <div class="step-arrow">➔</div>
+        <div class="step-item">
+          <div class="step-num">2</div>
+          <div class="step-label">專案設定</div>
+          <div class="step-desc">時程與存取模式</div>
+        </div>
+        <div class="step-arrow">➔</div>
+        <div class="step-item">
+          <div class="step-num">3</div>
+          <div class="step-label">問卷設計</div>
+          <div class="step-desc">拖曳排版自動儲存</div>
+        </div>
+        <div class="step-arrow">➔</div>
+        <div class="step-item">
+          <div class="step-num">4</div>
+          <div class="step-label">預覽試填</div>
+          <div class="step-desc">模擬完整作答流程</div>
+        </div>
+        <div class="step-arrow">➔</div>
+        <div class="step-item">
+          <div class="step-num">5</div>
+          <div class="step-label">開放發布</div>
+          <div class="step-desc">複製網址或 QR Code</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: Platform Comparison Table -->
+    <div class="comparison-section">
+      <div class="section-heading">
+        <span class="section-icon">⚖️</span>
+        <span>主流問卷平台功能比較</span>
+      </div>
+      <div class="table-wrapper">
+        <table class="comp-table">
+          <thead>
+            <tr>
+              <th style="width: 32%; text-align: left; padding-left: 12px;">評比功能項目</th>
+              <th class="highlight-col-header" style="width: 24%;">🌟 本問卷系統</th>
+              <th style="width: 22%;">Google 表單</th>
+              <th style="width: 22%;">SurveyCake (免費)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="feature-name">💵 費用方案</td>
+              <td class="highlight-col"><span class="badge-yes">✅ 全功能免費</span></td>
+              <td><span class="badge-yes">✅ 免費</span></td>
+              <td><span class="badge-warn">⚠️ 功能受限</span></td>
+            </tr>
+            <tr>
+              <td class="feature-name">✍️ 電子手繪簽名</td>
+              <td class="highlight-col"><span class="badge-yes">✅ 完整支援</span></td>
+              <td><span class="badge-no">❌ 無</span></td>
+              <td><span class="badge-no">❌ 無</span></td>
+            </tr>
+            <tr>
+              <td class="feature-name">📦 限量搶名額倒數</td>
+              <td class="highlight-col"><span class="badge-yes">✅ 自動扣除/歸還</span></td>
+              <td><span class="badge-no">❌ 無</span></td>
+              <td><span class="badge-no">❌ 無</span></td>
+            </tr>
+            <tr>
+              <td class="feature-name">📱 免登入跨裝置接續</td>
+              <td class="highlight-col"><span class="badge-yes">✅ 專屬接續網址</span></td>
+              <td><span class="badge-no">❌ 無</span></td>
+              <td><span class="badge-no">❌ 無</span></td>
+            </tr>
+            <tr>
+              <td class="feature-name">🔐 指定名單身分登入</td>
+              <td class="highlight-col"><span class="badge-yes">✅ Excel 一鍵匯入</span></td>
+              <td><span class="badge-no">❌ 無</span></td>
+              <td><span class="badge-no">❌ 無</span></td>
+            </tr>
+            <tr>
+              <td class="feature-name">📊 Windows Excel 匯出</td>
+              <td class="highlight-col"><span class="badge-yes">✅ 雙擊直接開(不亂碼)</span></td>
+              <td><span class="badge-warn">⚠️ 需手動轉碼</span></td>
+              <td><span class="badge-warn">⚠️ 需手動轉碼</span></td>
+            </tr>
+            <tr>
+              <td class="feature-name">📈 多維度交叉統計圖表</td>
+              <td class="highlight-col"><span class="badge-yes">✅ 即時圖表分析</span></td>
+              <td><span class="badge-no">❌ 無</span></td>
+              <td><span class="badge-no">❌ 無</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CTA Area -->
+    <div class="cta-container">
+      <div class="cta-btn">
+        <span>👉 點擊此處立即開啟問卷系統</span>
+      </div>
+      <div class="cta-link-hint">
+        系統網址：https://kgilife.github.io/survey-system/
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer Bar -->
+  <div class="footer-bar">
+    <div class="footer-note">
+      📖 詳細操作說明請參閱專案目錄下之<strong>《使用者操作手冊.md》</strong>
+    </div>
+    <div class="footer-note">
+      問卷調查管理團隊 敬上
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
