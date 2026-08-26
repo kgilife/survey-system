@@ -1,11 +1,13 @@
 const ENDPOINT = String(import.meta.env.VITE_GAS_API_URL || 'https://script.google.com/macros/s/AKfycbzYckl5w-cl7bG3F2hoX36yu9Du6r0JELSgGDbJA9n-2S6gaGUF-trc1iURHbw5jMKCJQ/exec').trim();
-const MAX_ATTEMPTS = 2;
-const REQUEST_TIMEOUT_MS = 12000;
-const RETRY_DELAYS = [0, 750];
-const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
+const MAX_ATTEMPTS = 5;
+const REQUEST_TIMEOUT_MS = 20000;
+const RETRY_DELAYS = [0, 400, 800, 1500, 2500];
+const RETRYABLE_STATUS = new Set([404, 408, 429, 500, 502, 503, 504]);
 const RETRYABLE_ACTIONS = new Set([
   'respondentProject', 'respondentLogin', 'respondentGuestLogin',
-  'respondentSurvey', 'respondentSave', 'respondentSubmit',
+  'respondentSurvey', 'respondentSave', 'respondentSubmit', 'respondentUpload',
+  'adminProjects', 'adminProject', 'adminResponses', 'adminStats',
+  'adminLogs', 'adminInventory', 'adminProfile', 'adminLogin', 'attachmentDownload',
 ]);
 
 export class ApiError extends Error {
@@ -26,10 +28,10 @@ export const createRequestId = () =>
 async function request(action, payload = {}) {
   if (!ENDPOINT) throw new ApiError({ code: 'CONFIG', message: '尚未設定 VITE_GAS_API_URL' });
   const requestId = payload.requestId || createRequestId();
-  const maxAttempts = RETRYABLE_ACTIONS.has(String(action)) ? MAX_ATTEMPTS : 1;
+  const maxAttempts = RETRYABLE_ACTIONS.has(String(action)) ? MAX_ATTEMPTS : 3;
   let lastError;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    if (attempt > 1) await wait(RETRY_DELAYS[attempt - 1]);
+    if (attempt > 1) await wait(RETRY_DELAYS[Math.min(attempt - 1, RETRY_DELAYS.length - 1)]);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
