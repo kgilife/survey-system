@@ -24,7 +24,7 @@ var PROJECT_SHEETS_ = {
 };
 
 function now_() { return new Date().toISOString(); }
-function withLock_(fn) { var lock = LockService.getScriptLock(); if(!lock.tryLock(30000))throw apiError_('SERVICE_BUSY','目前同時儲存的人較多，系統將自動重試。'); try { return fn(); } finally { lock.releaseLock(); } }
+function withLock_(fn) { var lock = LockService.getScriptLock(),started=Date.now(); if(!lock.tryLock(8000))throw apiError_('SERVICE_BUSY','目前同時儲存的人較多，系統將自動重試。'); var waited=Date.now()-started;if(waited>500)console.log(JSON.stringify({event:'script_lock_wait',durationMs:waited}));try { return fn(); } finally { lock.releaseLock(); } }
 
 function withIdempotentRequest_(ss,input,account,action,fn) {
   return withLock_(function() {
@@ -113,6 +113,45 @@ function replaceAll_(sheet, records) {
   var headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
   formatPlainTextColumns_(sheet,headers,2,records.length);
   sheet.getRange(2,1,records.length,headers.length).setValues(records.map(function(r) { return headers.map(function(h) { return r[h] === undefined ? '' : r[h]; }); }));
+}
+
+// Update only the supplied answer rows. Existing rows are written in contiguous
+// groups and new rows are appended as one block; unrelated answers are never
+// cleared or rewritten.
+function upsertAnswerRows_(sheet, records, account, keep) {
+  var values=sheet.getDataRange().getValues(),headers=values[0].map(String),accountColumn=headers.indexOf('account'),questionColumn=headers.indexOf('question_id'),index={},changed=[],pending=[],stale=[];
+  for(var r=1;r<values.length;r++){
+    var rowAccount=String(cleanCellForColumn_('account',values[r][accountColumn])),questionId=String(cleanCellForColumn_('question_id',values[r][questionColumn]));
+    index[rowAccount+'\u0000'+questionId]=r;
+    if(account!==undefined&&rowAccount===String(account)&&!keep[questionId])stale.push('A'+(r+1)+':'+columnName_(headers.length)+(r+1));
+  }
+  records.forEach(function(record){
+    var key=String(record.account)+'\u0000'+String(record.question_id),row=index[key],next=headers.map(function(h){return record[h]===undefined?'':record[h];});
+    if(row===undefined)pending.push(next);else{values[row]=next;changed.push(row);}
+  });
+  changed.sort(function(a,b){return a-b;});
+  for(var i=0;i<changed.length;){
+    var start=changed[i],end=start;
+    while(i+1<changed.length&&changed[i+1]===end+1){i++;end=changed[i];}
+    sheet.getRange(start+1,1,end-start+1,headers.length).setValues(values.slice(start,end+1));
+    i++;
+  }
+  if(pending.length){
+    var appendRow=sheet.getLastRow()+1,range=sheet.getRange(appendRow,1,pending.length,headers.length);
+    range.setNumberFormat('@');
+    range.setValues(pending);
+  }
+  if(stale.length)sheet.getRangeList(stale).clearContent();
+}
+
+// Status rows are small and fixed-width, so replacing one complete row avoids
+// one RangeList RPC for every changed column.
+function upsertStatusRow_(sheet, account, changes) {
+  var values=sheet.getDataRange().getValues(),headers=values[0].map(String),accountColumn=headers.indexOf('account'),row=-1,current=null;
+  for(var r=1;r<values.length;r++)if(String(cleanCellForColumn_('account',values[r][accountColumn]))===String(account)){row=r+1;current={};headers.forEach(function(h,i){current[h]=cleanCellForColumn_(h,values[r][i]);});break;}
+  var record=Object.assign({account:account,status:'未填寫',first_saved_at:'',last_saved_at:'',first_submitted_at:'',last_submitted_at:'',last_login_at:'',revision_count:0,updated_by:''},current||{},changes),target=row>0?sheet.getRange(row,1,1,headers.length):sheet.getRange(sheet.getLastRow()+1,1,1,headers.length);
+  target.setValues([headers.map(function(h){return record[h]===undefined?'':record[h];})]);
+  return record;
 }
 
 function updateWhere_(sheet, predicate, changes) {

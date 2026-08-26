@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { api, adminSession, userSession } from "./api";
+import { mergeSurveyAnswers, resumeGuestId, resumeUrl } from "./surveySync";
 import {
   LoginPage,
   RegisterPage,
@@ -2221,8 +2222,7 @@ function SurveyLogin({ projectId, onLogin }) {
       .then(async (r) => {
         setMeta(r.data);
         if (r.data.accessMode === "public") {
-          const params = new URLSearchParams(window.location.hash.split('?')[1] || "");
-          const guestId = params.get("resume") || localStorage.getItem(`survey_guest_${projectId}`);
+          const guestId = resumeGuestId(window.location) || localStorage.getItem(`survey_guest_${projectId}`);
           try {
             const res = await api.respondentGuestLogin({ projectId, guestId });
             localStorage.setItem(`survey_guest_${projectId}`, res.data.account);
@@ -2385,6 +2385,7 @@ function SurveyForm({ projectId, session, onLogout }) {
           revision: rev,
         });
       }}
+      onReload={async () => (await api.respondentSurvey({ token: session.token, projectId })).data}
       uploadFn={async (file, questionId, type, seq) => {
         return await api.respondentUpload({
           token: session.token,
@@ -2499,6 +2500,7 @@ function SurveyUI({
   adminAccount,
   onLogout,
   onSave,
+  onReload,
   uploadFn,
   downloadFn,
   deleteFn,
@@ -2517,7 +2519,10 @@ function SurveyUI({
     [errorSummary, setErrorSummary] = useState([]),
     [busy, setBusy] = useState(false),
     [showResumeLink, setShowResumeLink] = useState(false),
-    [showThankYou, setShowThankYou] = useState(false);
+    [showThankYou, setShowThankYou] = useState(false),
+    [revision, setRevision] = useState(data.revision || ""),
+    [status, setStatus] = useState(data.status),
+    [baseAnswers, setBaseAnswers] = useState(initialAnswers || {});
   const sections = [...data.schema.sections].sort((a, b) => a.order - b.order),
     section = history[history.length - 1],
     current = sections[section],
@@ -2614,12 +2619,29 @@ function SurveyUI({
     setBusy(true);
     setErrorSummary([]);
     try {
-      const r = await onSave(answers, submit, data.revision);
-      setData({
-        ...data,
-        revision: r.data?.revision || "",
-        status: r.data?.status || data.status,
-      });
+      let savedAnswers = answers;
+      let r;
+      try {
+        r = await onSave(savedAnswers, submit, revision);
+      } catch (e) {
+        if (e.code !== "CONFLICT" || !onReload) throw e;
+        const latest = await onReload();
+        const { merged, conflicts } = mergeSurveyAnswers(baseAnswers, savedAnswers, latest.answers || {});
+        savedAnswers = merged;
+        if (conflicts.length) {
+          const titles = conflicts.map((id) => data.schema.questions.find((q) => q.id === id)?.title || id);
+          const overwrite = window.confirm(`以下題目也在其他裝置被修改：\n${titles.join("、")}\n\n按「確定」以本裝置內容覆蓋；按「取消」保留畫面內容且不儲存。`);
+          if (!overwrite) {
+            setErrorSummary(["偵測到同一題的多裝置修改，本次尚未儲存。"]);
+            return;
+          }
+        }
+        r = await onSave(savedAnswers, submit, latest.revision || "");
+        setAnswers(savedAnswers);
+      }
+      setRevision(r.data?.revision || "");
+      setStatus(r.data?.status || status);
+      setBaseAnswers(savedAnswers);
       if (draftKey) localStorage.removeItem(draftKey);
       if (submit) {
         setShowThankYou(true);
@@ -2658,15 +2680,12 @@ function SurveyUI({
       setBusy(false);
     }
   }
-  const setData = (d) => {
-    Object.assign(data, d);
-  };
   return (
     <div className="survey stack">
       <section className="survey-head">
         <div className="row spread">
           <div className="row">
-            <span className="badge">{data.status.status || "未填寫"}</span>
+            <span className="badge">{status.status || "未填寫"}</span>
             {adminAccount && (
               <span
                 className="badge"
@@ -2709,13 +2728,13 @@ function SurveyUI({
               readOnly
               className="input"
               style={{ flex: 1 }}
-              value={`${window.location.origin}${window.location.pathname}?resume=${localStorage.getItem(`survey_guest_${projectId}`)}#/survey/${projectId}`}
+              value={resumeUrl(window.location, projectId, localStorage.getItem(`survey_guest_${projectId}`))}
               onClick={(e) => e.target.select()}
             />
             <button
               className="btn outline"
               onClick={() => {
-                navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?resume=${localStorage.getItem(`survey_guest_${projectId}`)}#/survey/${projectId}`);
+                navigator.clipboard.writeText(resumeUrl(window.location, projectId, localStorage.getItem(`survey_guest_${projectId}`)));
                 window.toast("網址已複製到剪貼簿", "success");
               }}
             >
