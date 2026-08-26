@@ -13,8 +13,11 @@ test('respondent saves use targeted answer upserts instead of full-table replace
   assert.match(database, /function upsertAnswerRows_/);
 });
 
-test('respondent API retry limit remains ten attempts', () => {
-  assert.match(api, /const MAX_ATTEMPTS = 10;/);
+test('respondent API fails fast and only retries transient service failures', () => {
+  assert.match(api, /const MAX_ATTEMPTS = 2;/);
+  assert.match(api, /const REQUEST_TIMEOUT_MS = 12000;/);
+  assert.match(api, /const RETRYABLE_STATUS = new Set\(\[429, 502, 503, 504\]\);/);
+  assert.doesNotMatch(api, /RETRYABLE_STATUS[^\n]*404/);
 });
 
 test('revision comparison considers both save and submit timestamps', () => {

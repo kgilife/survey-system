@@ -1,7 +1,8 @@
 const ENDPOINT = String(import.meta.env.VITE_GAS_API_URL || 'https://script.google.com/macros/s/AKfycbzYckl5w-cl7bG3F2hoX36yu9Du6r0JELSgGDbJA9n-2S6gaGUF-trc1iURHbw5jMKCJQ/exec').trim();
-const MAX_ATTEMPTS = 10;
-const RETRY_DELAYS = [0, 500, 1000, 1500, 2000, 3000, 4000, 5000, 7000, 9000];
-const RETRYABLE_STATUS = new Set([404, 408, 429, 500, 502, 503, 504]);
+const MAX_ATTEMPTS = 2;
+const REQUEST_TIMEOUT_MS = 12000;
+const RETRY_DELAYS = [0, 750];
+const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
 const RETRYABLE_ACTIONS = new Set([
   'respondentProject', 'respondentLogin', 'respondentGuestLogin',
   'respondentSurvey', 'respondentSave', 'respondentSubmit',
@@ -30,7 +31,7 @@ async function request(action, payload = {}) {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     if (attempt > 1) await wait(RETRY_DELAYS[attempt - 1]);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 45000);
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const response = await fetch(ENDPOINT, {
         method: 'POST',
