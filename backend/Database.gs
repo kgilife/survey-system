@@ -19,11 +19,29 @@ var PROJECT_SHEETS_ = {
   '附件紀錄': ['attachment_id','account','question_id','attachment_type','file_name','drive_file_id','file_size','mime_type','uploaded_at','active'],
   '專案操作紀錄': ['log_id','operator_type','operator_id','action','target_type','target_id','description','created_at'],
   '庫存設定': ['question_id','option_value','initial_stock','remaining_stock','active','updated_at'],
-  '庫存異動紀錄': ['transaction_id','account','question_id','option_value','quantity_delta','before_quantity','after_quantity','action','created_at']
+  '庫存異動紀錄': ['transaction_id','account','question_id','option_value','quantity_delta','before_quantity','after_quantity','action','created_at'],
+  '請求去重紀錄': ['request_id','account','action','response_json','created_at']
 };
 
 function now_() { return new Date().toISOString(); }
-function withLock_(fn) { var lock = LockService.getScriptLock(); lock.waitLock(30000); try { return fn(); } finally { lock.releaseLock(); } }
+function withLock_(fn) { var lock = LockService.getScriptLock(); if(!lock.tryLock(30000))throw apiError_('SERVICE_BUSY','目前同時儲存的人較多，系統將自動重試。'); try { return fn(); } finally { lock.releaseLock(); } }
+
+function withIdempotentRequest_(ss,input,account,action,fn) {
+  return withLock_(function() {
+    var requestId=safeText_(input.requestId||'',100);
+    if(!requestId)return fn();
+    var sheet=ss.getSheetByName('請求去重紀錄');
+    if(!sheet){sheet=ss.insertSheet('請求去重紀錄');sheet.getRange(1,1,1,5).setValues([PROJECT_SHEETS_['請求去重紀錄']]).setFontWeight('bold').setBackground('#dbeafe');sheet.setFrozenRows(1);}
+    var existing=rows_(sheet).find(function(r){return r.request_id===requestId;});
+    if(existing){
+      if(existing.account!==account||existing.action!==action)throw apiError_('BAD_REQUEST','請求識別碼不可重複使用。');
+      return parseJson_(existing.response_json,{ok:true});
+    }
+    var response=fn();
+    append_(sheet,{request_id:requestId,account:account,action:action,response_json:JSON.stringify(response),created_at:now_()});
+    return response;
+  });
+}
 function cleanCell_(value) { return value instanceof Date ? value.toISOString() : value; }
 
 function cleanCellForColumn_(header, value) {

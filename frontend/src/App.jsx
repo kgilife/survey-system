@@ -2370,6 +2370,7 @@ function SurveyForm({ projectId, session, onLogout }) {
       projectId={projectId}
       data={data}
       initialAnswers={data.answers || {}}
+      draftKey={`survey.draft.${projectId}.${session.account || "anonymous"}`}
       onLogout={() => {
         userSession.clear(projectId);
         if (onLogout) onLogout();
@@ -2494,6 +2495,7 @@ function SurveyUI({
   projectId,
   data,
   initialAnswers,
+  draftKey,
   adminAccount,
   onLogout,
   onSave,
@@ -2501,7 +2503,15 @@ function SurveyUI({
   downloadFn,
   deleteFn,
 }) {
-  const [answers, setAnswers] = useState(initialAnswers || {}),
+  const [answers, setAnswers] = useState(() => {
+      if (!draftKey) return initialAnswers || {};
+      try {
+        const local = JSON.parse(localStorage.getItem(draftKey) || "null");
+        return local?.answers && typeof local.answers === "object" ? local.answers : (initialAnswers || {});
+      } catch {
+        return initialAnswers || {};
+      }
+    }),
     [history, setHistory] = useState([0]),
     [errors, setErrors] = useState({}),
     [errorSummary, setErrorSummary] = useState([]),
@@ -2514,7 +2524,15 @@ function SurveyUI({
     questions = data.schema.questions.filter((q) => q.sectionId === current.id),
     writable = data.project.writable;
   const change = (id, v) => {
-    setAnswers({ ...answers, [id]: v });
+    setAnswers((currentAnswers) => {
+      const nextAnswers = { ...currentAnswers, [id]: v };
+      if (draftKey) {
+        try {
+          localStorage.setItem(draftKey, JSON.stringify({ answers: nextAnswers, savedAt: new Date().toISOString() }));
+        } catch (_) {}
+      }
+      return nextAnswers;
+    });
     setErrors({ ...errors, [id]: undefined });
     setErrorSummary([]);
   };
@@ -2602,6 +2620,7 @@ function SurveyUI({
         revision: r.data?.revision || "",
         status: r.data?.status || data.status,
       });
+      if (draftKey) localStorage.removeItem(draftKey);
       if (submit) {
         setShowThankYou(true);
         window.scrollTo({ top: 0, behavior: "smooth" });
