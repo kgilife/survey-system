@@ -261,6 +261,51 @@ textarea.input {
 }
 .save-guard h3 { margin: 0 0 8px; }
 .save-guard p { margin: 0 0 22px; color: var(--muted); line-height: 1.65; }
+.save-progress-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, .56);
+  backdrop-filter: blur(3px);
+}
+.save-progress-dialog {
+  width: min(100%, 380px);
+  padding: 32px 26px 26px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .3);
+  text-align: center;
+}
+.save-progress-dialog h2 { margin: 16px 0 8px; }
+.save-progress-dialog p { margin: 0 0 22px; color: var(--muted); line-height: 1.65; }
+.save-progress-spinner {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto;
+  border: 5px solid #dce8ee;
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: saveProgressSpin .8s linear infinite;
+}
+.save-progress-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: var(--ok);
+  color: #fff;
+  font-size: 30px;
+  font-weight: 800;
+}
+@keyframes saveProgressSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .save-progress-spinner { animation-duration: 1.8s; }
+}
 .question-drop:has(.drag-grip:hover) { outline: 1px dashed #8eacbe; }
 .dragging { opacity: 0.45; }
 .empty-section {

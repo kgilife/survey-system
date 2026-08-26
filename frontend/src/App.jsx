@@ -2518,6 +2518,7 @@ function SurveyUI({
     [errors, setErrors] = useState({}),
     [errorSummary, setErrorSummary] = useState([]),
     [busy, setBusy] = useState(false),
+    [saveDialog, setSaveDialog] = useState(null),
     [showResumeLink, setShowResumeLink] = useState(false),
     [showThankYou, setShowThankYou] = useState(false),
     [revision, setRevision] = useState(data.revision || ""),
@@ -2617,6 +2618,7 @@ function SurveyUI({
 
   async function persist(submit) {
     setBusy(true);
+    setSaveDialog({ action: submit ? "submit" : "save", complete: false });
     setErrorSummary([]);
     try {
       let savedAnswers = answers;
@@ -2633,6 +2635,7 @@ function SurveyUI({
           const overwrite = window.confirm(`以下題目也在其他裝置被修改：\n${titles.join("、")}\n\n按「確定」以本裝置內容覆蓋；按「取消」保留畫面內容且不儲存。`);
           if (!overwrite) {
             setErrorSummary(["偵測到同一題的多裝置修改，本次尚未儲存。"]);
+            setSaveDialog(null);
             return;
           }
         }
@@ -2644,6 +2647,7 @@ function SurveyUI({
       setBaseAnswers(savedAnswers);
       if (draftKey) localStorage.removeItem(draftKey);
       if (submit) {
+        setSaveDialog({ action: "submit", complete: true });
         setShowThankYou(true);
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
@@ -2652,9 +2656,11 @@ function SurveyUI({
         setShowResumeLink(true);
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
+      setSaveDialog({ action: "save", complete: true });
       window.toast(r.message || "已暫存，您可以稍後再回來繼續填寫", "success");
       setErrors({});
     } catch (e) {
+      setSaveDialog(null);
       if (e.details) {
         const map = {};
         const msgs = [];
@@ -2682,6 +2688,38 @@ function SurveyUI({
   }
   return (
     <div className="survey stack">
+      {saveDialog && (
+        <div className="save-progress-backdrop" role="presentation">
+          <div
+            className="save-progress-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-live="assertive"
+            aria-labelledby="save-progress-title"
+          >
+            {saveDialog.complete ? (
+              <div className="save-progress-icon complete" aria-hidden="true">✓</div>
+            ) : (
+              <div className="save-progress-spinner" aria-hidden="true" />
+            )}
+            <h2 id="save-progress-title">
+              {saveDialog.complete
+                ? (saveDialog.action === "submit" ? "已送出" : "已儲存")
+                : (saveDialog.action === "submit" ? "送出中" : "儲存中")}
+            </h2>
+            <p>
+              {saveDialog.complete
+                ? (saveDialog.action === "submit" ? "問卷已成功送出。" : "問卷進度已成功儲存。")
+                : "請稍候，完成前請勿關閉或離開此頁。"}
+            </p>
+            {saveDialog.complete && (
+              <button className="btn primary" autoFocus onClick={() => setSaveDialog(null)}>
+                知道了
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       <section className="survey-head">
         <div className="row spread">
           <div className="row">
@@ -2801,7 +2839,7 @@ function SurveyUI({
               disabled={busy || !writable}
               onClick={() => persist(false)}
             >
-              暫存
+              {busy ? "儲存中…" : "暫存"}
             </button>
           </div>
           {!isSubmit ? (
@@ -2821,7 +2859,7 @@ function SurveyUI({
                 if (validateCurrentPage()) persist(true);
               }}
             >
-              {adminAccount ? "送出並覆蓋" : "送出問卷"}
+              {busy ? "送出中…" : (adminAccount ? "送出並覆蓋" : "送出問卷")}
             </button>
           )}
         </div>
