@@ -294,10 +294,10 @@ function Dashboard() {
                     <div className="muted small">填寫率</div>
                   </div>
                   <div>
-                    <span className="metric">{p.stats?.submitted || 0}</span>
-                    <div className="muted small">
-                      已送出／{p.stats?.total || 0}
-                    </div>
+                    <span className="metric">
+                      {p.stats?.submitted || 0} / {p.stats?.total || 0}
+                    </span>
+                    <div className="muted small">已送出／全部使用者</div>
                   </div>
                 </div>
                 <div className="muted small">最後更新：{fmt(p.updated_at)}</div>
