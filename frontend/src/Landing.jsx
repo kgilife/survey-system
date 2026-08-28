@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { AdvancedQuestion } from "./AdvancedQuestions";
+import "./landing.css";
 
 const go = (path) => { location.hash = path; };
 
@@ -158,39 +159,39 @@ export default function Landing({ variant = "v2" }) {
 
     <main>
       <section className="landing-hero">
-        <div className="eyebrow">{v2 ? "問卷建立與填答管理" : "SURVEY, MADE THOUGHTFUL"}</div>
-        <h1>{v2 ? <>一般問卷、指定名單填答，<br />都在同一套系統完成。</> : <>問得更好，<br />答案自然更清楚。</>}</h1>
-        <p>{v2 ? "建立 26 種題型，選擇公開連結或限制名單登入，並追蹤填寫進度、查看統計及匯出 CSV。" : "操作直覺、題型豐富，而且免費。從 20+ 種問項、名單與填答權限，到即時統計與 Excel／CSV 匯出，一個地方就能完成。"}</p>
-        <div className="hero-actions"><button className="pill primary" onClick={() => go("/register")}>免費建立第一份問卷</button><a className="pill link" href="#features">看看如何運作 <span>→</span></a></div>
+        <div className="eyebrow">問卷所</div>
+        <h1>{v2 ? <>問卷建立與管理</> : <>問得更好，<br />答案自然更清楚。</>}</h1>
+        <p>{v2 ? "支援公開填答與指定名單，集中管理填寫進度與回收結果。" : "操作直覺、題型豐富，而且免費。從 20+ 種問項、名單與填答權限，到即時統計與 Excel／CSV 匯出，一個地方就能完成。"}</p>
+        <div className="hero-actions"><button className="pill primary" onClick={() => go("/register")}>建立第一份問卷</button><a className="pill link" href="#features">看看如何運作 <span>→</span></a></div>
         <div className="hero-proof" aria-label="產品特色"><span>免信用卡</span><span>支援匿名填答</span><span>Excel／CSV 匯出</span></div>
-        <p className="preview-label">{v2 ? "建立題目、管理填答者、查看結果，不必切換工具" : "從設計到回收，集中在同一個工作區"}</p>
+        <p className="preview-label">{v2 ? "從設計到回收，一處管理" : "從設計到回收，集中在同一個工作區"}</p>
         <MiniBuilder v2={v2} />
       </section>
 
       <section className="promise" id="features">
-        <p className="section-kicker">{v2 ? "主要功能" : "從想法到洞察"}</p>
-        <h2>{v2 ? "設計問卷、控管填答對象、整理回收結果。" : "少一點設定，多一點理解。"}</h2>
+
+        <h2>{v2 ? "主要功能" : "少一點設定，多一點理解。"}</h2>
         <div className="feature-grid">
-          <article className="feature-card warm"><span className="feature-no">01</span><h3>{v2 ? "建立一般與進階題型" : "像寫文件一樣設計"}</h3><p>{v2 ? "使用簡答、單複選、評分、矩陣、排序、庫存、簽名、圖片標記等 26 種題型，並以區段安排作答流程。" : "把題目拖進段落、即時調整順序。基礎題型與進階研究題型放在清楚的分類中，不必猜功能藏在哪。"}</p><div className="feature-visual lines"><i /><i /><i /></div></article>
-          <article className="feature-card blue"><span className="feature-no">02</span><h3>{v2 ? "公開填寫或限制指定名單" : "能開放大眾填寫，也能精準設定答題者名單"}</h3><p>{v2 ? "可讓取得連結的人匿名填寫，也可匯入帳號名單，限制只有指定人員登入作答。" : "除了像 Google 表單一樣，讓任何取得連結的人填寫，也能指定填答者並驗證身分，確保調查樣本來自真正需要的對象。"}</p><div className="feature-visual people"><i>林</i><i>王</i><i>陳</i><b>+24</b></div></article>
-          <article className="feature-card ink"><span className="feature-no">03</span><h3>{v2 ? "查看填寫進度並匯出資料" : "結果不只是一張表"}</h3><p>{v2 ? "查看完成與未完成名單、答案分布和分組統計；需要自行分析時，可匯出 CSV。" : "即時掌握回收率、答案分布與文字回饋。需要深入分析時，再匯出乾淨資料。"}</p><div className="feature-visual chart"><i /><i /><i /><i /><i /></div></article>
+          <article className="feature-card warm"><span className="feature-no">01</span><h3>{v2 ? "問卷設計" : "像寫文件一樣設計"}</h3><p>{v2 ? "提供 26 種題型，從單複選到矩陣、簽名，依需求安排作答流程。" : "把題目拖進段落、即時調整順序。基礎題型與進階研究題型放在清楚的分類中，不必猜功能藏在哪。"}</p><div className="feature-visual lines"><i /><i /><i /></div></article>
+          <article className="feature-card blue"><span className="feature-no">02</span><h3>{v2 ? "填答權限" : "能開放大眾填寫，也能精準設定答題者名單"}</h3><p>{v2 ? "可讓取得連結的人匿名填寫，也可匯入帳號名單，限制只有指定人員登入作答。" : "除了像 Google 表單一樣，讓任何取得連結的人填寫，也能指定填答者並驗證身分，確保調查樣本來自真正需要的對象。"}</p><div className="feature-visual people"><i>林</i><i>王</i><i>陳</i><b>+24</b></div></article>
+          <article className="feature-card ink"><span className="feature-no">03</span><h3>{v2 ? "結果統計" : "結果不只是一張表"}</h3><p>{v2 ? "追蹤填寫進度、查看答案分布與分組統計，並匯出 CSV。" : "即時掌握回收率、答案分布與文字回饋。需要深入分析時，再匯出乾淨資料。"}</p><div className="feature-visual chart"><i /><i /><i /><i /><i /></div></article>
         </div>
       </section>
 
       <section className="steps">
-        <div><p className="section-kicker">{v2 ? "建立流程" : "輕鬆擁有專業設計的質感"}</p><h2>{v2 ? "設定完成，預覽確認後就能發佈。" : "三步完成一份可靠問卷。"}</h2></div>
+        <div><h2>{v2 ? "三步發佈問卷" : "三步完成一份可靠問卷。"}</h2></div>
         <ol><li><b>{v2 ? "建立題目" : "建立架構"}</b><span>{v2 ? "新增題型與區段，設定必填、選項和跳題規則。" : "先寫調查目的，再用段落安排填答節奏。"}</span></li><li><b>{v2 ? "設定填答權限" : "選擇題型"}</b><span>{v2 ? "選擇公開填寫，或匯入指定填答者的帳號名單。" : "依資料用途選題，而不是為了看起來豐富。"}</span></li><li><b>{v2 ? "預覽並發佈" : "測試與發佈"}</b><span>{v2 ? "實際測試手機畫面、跳題和必填設定，再分享填答連結。" : "用手機實際填一次，確認分支、必填與完成訊息。"}</span></li></ol>
       </section>
 
       <section className="guide" id="guide">
-        <div className="guide-head"><div><p className="section-kicker">題型指南</p><h2>{v2 ? "26 種題型的用途、設定方式與填答預覽" : "每一題，都有正確的問法。"}</h2><p>{v2 ? "搜尋題型或使用情境，查看適用時機、管理端設定步驟和填答者畫面。" : "從常見選項到研究型題目，這裡提供可直接套用的設定案例。"}</p></div><label className="guide-search"><span>搜尋題型或情境</span><input value={query} onChange={e => setQuery(e.target.value)} placeholder="例如：評分、預約、圖片" /><i>⌕</i></label></div>
+        <div className="guide-head"><div><p className="section-kicker">題型指南</p><h2>{v2 ? "26 種題型" : "每一題，都有正確的問法。"}</h2><p>{v2 ? "找到適合的題型，查看設定方式與填答預覽。" : "從常見選項到研究型題目，這裡提供可直接套用的設定案例。"}</p></div><label className="guide-search"><span>搜尋題型或情境</span><input value={query} onChange={e => setQuery(e.target.value)} placeholder="例如：評分、預約、圖片" /><i>⌕</i></label></div>
         <div className="guide-list">
-          {groupedList.map((group, groupIndex) => <section className="guide-group" key={group.name}><header><span>{group.name}</span><p>{group.hint}</p></header>{group.guides.map(([name, summary, note, type], itemIndex) => <details key={name} open={!query && groupIndex === 0 && itemIndex === 0}><summary><b>{name}</b><em>{summary}</em><i>＋</i></summary><div className="guide-detail"><div className="guide-copy"><section><small>這種題目適合什麼時候？</small><p>{note}</p></section><section><small>管理頁面怎麼設定？</small><ol>{stepFor(name).map(step => <li key={step}>{step}</li>)}</ol></section></div><section><small>填答者畫面預覽</small><AnswerPreview name={name} summary={summary} type={type} /><p className="preview-caption">預覽使用與正式填答頁相同的題型控制；內容為不含個資的示範資料。</p></section></div></details>)}</section>)}
+          {groupedList.map((group) => <section className="guide-group" key={group.name}><header><span>{group.name}</span><p>{group.hint}</p></header>{group.guides.map(([name, summary, note, type]) => <details key={name}><summary><b>{name}</b><em>{summary}</em><i>＋</i></summary><div className="guide-detail"><div className="guide-copy"><section><small>這種題目適合什麼時候？</small><p>{note}</p></section><section><small>管理頁面怎麼設定？</small><ol>{stepFor(name).map(step => <li key={step}>{step}</li>)}</ol></section></div><section><small>填答者畫面預覽</small><AnswerPreview name={name} summary={summary} type={type} /><p className="preview-caption">預覽使用與正式填答頁相同的題型控制；內容為不含個資的示範資料。</p></section></div></details>)}</section>)}
           {!list.length && <div className="empty-guide">找不到符合的題型。試試「選擇」、「評分」或「上傳」。</div>}
         </div>
       </section>
 
-      <section className="final-cta"><p>{v2 ? "適合需要進階題型、指定名單或填寫進度追蹤的問卷" : "你的下一份問卷，可以更清楚。"}</p><h2>{v2 ? "現在建立問卷並測試填答流程。" : "把時間留給真正重要的問題。"}</h2><button className="pill light" onClick={() => go("/register")}>建立第一份問卷</button></section>
+      <section className="final-cta"><p>{v2 ? "選好題型，預覽確認後就能分享。" : "你的下一份問卷，可以更清楚。"}</p><h2>{v2 ? "開始建立問卷" : "把時間留給真正重要的問題。"}</h2><button className="pill light" onClick={() => go("/register")}>建立第一份問卷</button></section>
     </main>
     <footer><button className="landing-brand" onClick={() => scrollTo({ top: 0, behavior: "smooth" })}><span>問</span>問卷所</button><p>{v2 ? "建立問卷、管理填答者、追蹤回收結果。" : "讓調查設計回到清楚、誠實與好用。"}</p><div><a href="#guide">使用指南</a><button onClick={() => go("/admin/login")}>管理者登入</button></div></footer>
   </div>;

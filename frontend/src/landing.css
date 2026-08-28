@@ -1,0 +1,83 @@
+/* Homepage only: readable Chinese typography and touch-friendly spacing. */
+body:has(.landing) { min-width: 0; }
+.landing { line-height: 1.75; }
+.landing h1, .landing h2, .landing h3 { letter-spacing: normal; text-wrap: balance; overflow-wrap: anywhere; }
+.landing .landing-hero { padding: 64px 24px 0; }
+.landing .landing-hero h1 { font-size: clamp(2rem, 4.5vw, 4rem); line-height: 1.3; margin: 16px auto 20px; }
+.landing .landing-hero > p:not(.preview-label) { max-width: 32em; font-size: 1.125rem; line-height: 1.85; }
+.landing .eyebrow, .landing .section-kicker { font-size: .875rem; letter-spacing: .06em; }
+.landing .hero-proof { font-size: .875rem; gap: 12px 24px; }
+.landing .preview-label { font-size: .875rem !important; line-height: 1.75; letter-spacing: normal; }
+.landing .product-preview { width: min(1120px, 100%); transform: none; }
+.landing .preview-title strong { font-size: clamp(1.25rem, 2.2vw, 1.75rem); line-height: 1.5; letter-spacing: normal; }
+.landing .preview-body, .landing .preview-canvas, .landing .preview-question > div { min-width: 0; }
+.landing .preview-body { min-height: 0; }
+.landing .preview-canvas { padding: 36px; }
+.landing .promise, .landing .guide { padding: 72px max(24px, calc((100% - 1120px) / 2)); scroll-margin-top: 80px; }
+.landing .promise > h2, .landing .guide h2, .landing .steps h2, .landing .final-cta h2 { font-size: clamp(1.5rem, 3vw, 2.25rem); line-height: 1.4; letter-spacing: normal; margin: 0 0 28px; }
+.landing .feature-grid { gap: 24px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.landing .feature-card { min-height: 0; padding: 28px; display: flex; flex-direction: column; }
+.landing .feature-card h3 { font-size: 1.375rem; line-height: 1.5; margin: 24px 0 12px; }
+.landing .feature-card p { font-size: 1rem; line-height: 1.85; opacity: 1; margin: 0 0 28px; }
+.landing .feature-visual { position: static; margin-top: auto; height: 88px; flex-shrink: 0; }
+.landing .steps { padding: 64px max(24px, calc((100% - 1120px) / 2)); gap: 40px; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
+.landing .steps li { grid-template-columns: 130px minmax(0, 1fr); gap: 20px; }
+.landing .steps li span { line-height: 1.85; color: #c5c6c0; }
+.landing .guide-head { gap: 32px; margin-bottom: 40px; }
+.landing .guide-head > div { min-width: 0; }
+.landing .guide-head h2 { margin: 8px 0 16px; }
+.landing .guide-head > div > p:last-child { color: #555650; max-width: 32em; margin-bottom: 0; }
+.landing .guide-search { flex-shrink: 0; width: min(320px, 100%); min-width: 0; }
+.landing .guide-search span { position: static; grid-column: 1 / -1; font-size: .875rem; }
+.landing .guide-search input { width: 100%; min-width: 0; min-height: 48px; font-size: 1rem; }
+.landing .guide-search:focus-within { outline: 2px solid #435c0a; outline-offset: 6px; }
+.landing .guide-group > header p { font-size: .9375rem; color: #62635c; }
+.landing .guide-group summary { grid-template-columns: minmax(140px, 210px) minmax(0, 1fr) 28px; gap: 16px; padding: 24px 0; }
+.landing .guide-group summary em { color: #62635c; line-height: 1.8; }
+.landing .guide-group .guide-detail { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; padding: 8px 0 32px; }
+.landing .guide-detail > *, .landing .guide-copy section { min-width: 0; }
+.landing .guide-detail small { font-size: .875rem; letter-spacing: normal; color: #555650; }
+.landing .guide-detail p, .landing .guide-detail ol { line-height: 1.85; }
+.landing .guide-detail ol { gap: 14px; }
+.landing .answer-preview { min-width: 0; max-width: 100%; overflow-x: auto; }
+.landing .preview-caption { font-size: .875rem; }
+.landing .final-cta { padding: 64px 24px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+.landing .final-cta h2 { order: -1; margin: 0; }
+.landing .final-cta p { max-width: 30em; line-height: 1.85; }
+.landing .landing-nav button, .landing .landing-nav a, .landing footer button, .landing footer a { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+.landing footer p { color: #bfc0ba; }
+@media (max-width: 850px) {
+  .landing .landing-links a { display: none; }
+  .landing .feature-grid, .landing .steps, .landing .guide-group .guide-detail { grid-template-columns: minmax(0, 1fr); }
+  .landing .feature-card { padding: 28px; }
+  .landing .feature-card h3 { margin-top: 16px; }
+  .landing .feature-visual { max-width: 320px; width: 100%; }
+  .landing .steps { gap: 8px; }
+  .landing .guide-head { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .landing .guide-search { margin-top: 0; width: 100%; }
+}
+@media (max-width: 560px) {
+  .landing .landing-links .text-link { display: none; }
+  .landing .landing-nav { padding-inline: 16px; }
+  .landing .landing-hero { padding: 40px 20px 0; }
+  .landing .landing-hero h1 { font-size: 2rem; line-height: 1.4; letter-spacing: normal; }
+  .landing .landing-hero > p:not(.preview-label) { font-size: 1rem; line-height: 1.9; text-align: left; }
+  .landing .hero-actions { gap: 12px; margin: 24px 0; }
+  .landing .hero-proof { gap: 10px 16px; }
+  .landing .preview-canvas { padding: 24px 16px; min-height: 0; }
+  .landing .preview-question { grid-template-columns: 20px minmax(0, 1fr); gap: 10px; }
+  .landing .promise, .landing .guide, .landing .steps { padding: 48px 20px; }
+  .landing .feature-grid { gap: 20px; }
+  .landing .feature-card { padding: 24px; }
+  .landing .steps li { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 24px 0; }
+  .landing .guide-group > header { display: block; }
+  .landing .guide-group summary { grid-template-columns: minmax(0, 1fr) 28px; gap: 8px 16px; }
+  .landing .guide-group summary b { font-size: 1.125rem; }
+  .landing .guide-group summary em { display: block; grid-column: 1; grid-row: 2; font-size: 1rem; }
+  .landing .guide-group summary i { grid-column: 2; grid-row: 1 / 3; text-align: center; }
+  .landing .answer-sheet { margin: 8px; padding: 16px; }
+  .landing .guide-detail .input { font-size: 1rem; }
+  .landing .final-cta { padding: 48px 20px; }
+  .landing footer { padding: 32px 20px; gap: 16px; }
+  .landing footer > div { flex-wrap: wrap; gap: 12px 24px; }
+}
