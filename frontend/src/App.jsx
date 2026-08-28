@@ -17,7 +17,7 @@ import {
 } from "./AdvancedQuestions";
 import Landing from "./Landing";
 import { parseUserPaste } from "./userPaste";
-import { focusSurveyError, validationNotice } from "./surveyErrors";
+import { focusSurveyError, validationNotice, matrixErrors, matrixCellId, serverErrors } from "./surveyErrors";
 
 const toastEvent = new EventTarget();
 window.toast = (message, type = "success") => {
@@ -2556,7 +2556,8 @@ function SurveyUI({
     questions = data.schema.questions.filter((q) => q.sectionId === current.id),
     writable = data.project.writable;
   const surveyRef = useRef(null);
-  const goToError = (questionId) => {
+  const goToError = (entry) => {
+    const { questionId } = entry;
     const question = data.schema.questions.find((q) => q.id === questionId);
     const index = sections.findIndex((s) => s.id === question?.sectionId);
     if (index < 0) return;
@@ -2566,13 +2567,13 @@ function SurveyUI({
         return visited >= 0 ? previous.slice(0, visited + 1) : [...previous, index];
       });
     }
-    setErrorTarget({ questionId });
+    setErrorTarget({ ...entry });
   };
   useEffect(() => {
     if (!errorTarget || saveDialog || showThankYou) return;
     // Run after React commits both the section change and inline errors.
     const frame = requestAnimationFrame(() => {
-      focusSurveyError(surveyRef.current, errorTarget.questionId);
+      focusSurveyError(surveyRef.current, errorTarget.questionId, errorTarget.cellId);
       setErrorTarget(null);
     });
     return () => cancelAnimationFrame(frame);
@@ -2587,8 +2588,18 @@ function SurveyUI({
       }
       return nextAnswers;
     });
-    setErrors({ ...errors, [id]: undefined });
-    setErrorSummary((previous) => previous.filter((entry) => entry.questionId !== id));
+    const question = data.schema.questions.find((q) => q.id === id);
+    const remaining = Array.isArray(errors[id]) ? matrixErrors(question, v) : [];
+    setErrors({ ...errors, [id]: remaining.length ? remaining : undefined });
+    setErrorSummary((previous) => {
+      let replaced = false;
+      return previous.flatMap((entry) => {
+        if (entry.questionId !== id) return [entry];
+        if (replaced) return [];
+        replaced = true;
+        return remaining;
+      });
+    });
   };
   const getNextSection = () => {
     let jump = "";
@@ -2619,13 +2630,17 @@ function SurveyUI({
     questions.forEach((q) => {
       if (q.type === "heading" || q.type === "image_note") return;
       const val = answers[q.id];
+      if (q.type === "linked_matrix") {
+        const missing = matrixErrors(q, val);
+        if (missing.length) {
+          errs[q.id] = missing;
+          msgs.push(...missing);
+        }
+        return;
+      }
       let isBlank = val === undefined || val === null || val === "";
       if (Array.isArray(val)) isBlank = val.length === 0;
       else if (q.type === "terms") isBlank = !val || val.accepted !== true;
-      else if (q.type === "linked_matrix") {
-        const prompts=q.config?.prompts||[], items=q.options||[];
-        isBlank = items.length > 0 && prompts.filter((p)=>p.required!==false).some((p)=>items.some((o)=>{const cell=val?.[o.value]?.[p.id];return Array.isArray(cell)?cell.length===0:!String(cell??"").trim();}));
-      }
       else if (typeof val === "object" && val !== null) isBlank = Object.keys(val).length === 0;
       
       if (q.required && isBlank) {
@@ -2654,8 +2669,7 @@ function SurveyUI({
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       setErrorSummary(msgs);
-      const first = Object.keys(errs)[0];
-      goToError(first);
+      goToError(msgs[0]);
       window.toast(validationNotice(msgs), "error");
       return false;
     }
@@ -2711,15 +2725,14 @@ function SurveyUI({
       setSaveDialog(null);
       if (Array.isArray(e.details) && e.details.length > 0) {
         const map = {};
-        const msgs = [];
-        e.details.forEach((x) => {
-          map[x.questionId] = x.message;
-          const qTitle = data.schema.questions.find(q => q.id === x.questionId)?.title || "題目";
-          msgs.push({ questionId: x.questionId, message: `「${qTitle}」${x.message}` });
+        const msgs = serverErrors(e.details, data.schema, answers);
+        msgs.forEach((entry) => {
+          if (entry.cellId) {
+            (map[entry.questionId] ||= []).push(entry);
+          } else map[entry.questionId] = entry.message;
         });
         setErrors(map);
-        const first = e.details[0]?.questionId;
-        goToError(first);
+        goToError(msgs[0]);
         setErrorSummary(msgs);
         window.toast(validationNotice(msgs), "error");
       } else {
@@ -2831,7 +2844,7 @@ function SurveyUI({
             {errorSummary.map((entry, idx) => (
               <li key={idx}>
                 {entry.questionId ? (
-                  <button type="button" className="error-question-link" onClick={() => goToError(entry.questionId)}>
+                  <button type="button" className="error-question-link" onClick={() => goToError(entry)}>
                     {entry.message}
                   </button>
                 ) : (entry.message || entry)}
@@ -2964,12 +2977,22 @@ function Question({
     );
   } else if (q.type === "linked_matrix") {
     const vals = value && typeof value === "object" ? value : {}, prompts = q.config?.prompts || [];
+    const missingIds = new Set(Array.isArray(error) ? error.map((entry) => entry.cellId) : []);
+    const cellProps = (o, p) => {
+      const id = matrixCellId(q.id, o.value, p.id);
+      return { "data-error-cell": id, tabIndex: -1,
+        "aria-label": `${o.label}－${p.label}`,
+        "aria-invalid": missingIds.has(id) || undefined,
+        className: missingIds.has(id) ? "matrix-cell-error" : undefined };
+    };
+    const cellError = (o, p) => missingIds.has(matrixCellId(q.id, o.value, p.id))
+      ? <div className="required small">此子題尚未填寫</div> : null;
     const setCell=(itemId,promptId,cellValue)=>onChange({...vals,[itemId]:{...vals[itemId],[promptId]:cellValue}});
     const cellInput=(o,p)=>{const type=p.type||"short",cell=vals[o.value]?.[p.id];return type==="single"?<div className="matrix-cell-options">{(p.options||[]).map((option)=><label className="check" key={option.value}><input type="radio" name={`${q.id}_${o.value}_${p.id}`} disabled={disabled} checked={cell===option.value} onChange={()=>setCell(o.value,p.id,option.value)}/><span>{option.label}</span></label>)}</div>:type==="checkbox"?<div className="matrix-cell-options">{(p.options||[]).map((option)=>{const selected=Array.isArray(cell)&&cell.includes(option.value);return <label className="check" key={option.value}><input type="checkbox" disabled={disabled} checked={selected} onChange={(e)=>setCell(o.value,p.id,e.target.checked?[...(Array.isArray(cell)?cell:[]),option.value]:(Array.isArray(cell)?cell:[]).filter((v)=>v!==option.value))}/><span>{option.label}</span></label>})}</div>:<input className="input" aria-label={`${o.label}－${p.label}`} placeholder={p.config?.placeholder||""} disabled={disabled} value={typeof cell==="string"?cell:""} onChange={(e)=>setCell(o.value,p.id,e.target.value)}/>};
     const empty=!(q.options||[]).length&&<p className="muted">此帳號目前沒有需要填寫的項目。</p>;
     input = q.config?.displayStyle === "matrix"
-      ? <div className="table-wrap linked-matrix-wrap"><table className="grid-table linked-matrix-table"><thead><tr><th>項目</th>{prompts.map((p)=><th key={p.id}>{p.label}{q.required&&p.required!==false&&<span className="required-mark"> *</span>}</th>)}</tr></thead><tbody>{(q.options||[]).map((o)=><tr key={o.value}><th scope="row">{o.label}</th>{prompts.map((p)=><td key={p.id}>{cellInput(o,p)}</td>)}</tr>)}</tbody></table>{empty}</div>
-      : <div className="linked-matrix-list">{(q.options||[]).map((o,index)=><section className="linked-matrix-item" key={o.value} aria-labelledby={`${q.id}-${o.value}-title`}><header><span className="linked-matrix-item-number">{index+1}</span><h4 id={`${q.id}-${o.value}-title`}>{o.label}</h4></header><div className="linked-matrix-item-fields">{prompts.map((p,promptIndex)=><fieldset className="linked-matrix-list-field" key={p.id}><legend><span className="linked-matrix-question-number">Q{promptIndex+1}.</span> {p.label}{q.required&&p.required!==false&&<span className="required-mark"> *</span>}</legend>{cellInput(o,p)}</fieldset>)}</div></section>)}{empty}</div>;
+      ? <div className="table-wrap linked-matrix-wrap"><table className="grid-table linked-matrix-table"><thead><tr><th>項目</th>{prompts.map((p)=><th key={p.id}>{p.label}{q.required&&p.required!==false&&<span className="required-mark"> *</span>}</th>)}</tr></thead><tbody>{(q.options||[]).map((o)=><tr key={o.value}><th scope="row">{o.label}</th>{prompts.map((p)=><td key={p.id} {...cellProps(o,p)}>{cellError(o,p)}{cellInput(o,p)}</td>)}</tr>)}</tbody></table>{empty}</div>
+      : <div className="linked-matrix-list">{(q.options||[]).map((o,index)=><section className="linked-matrix-item" key={o.value} aria-labelledby={`${q.id}-${o.value}-title`}><header><span className="linked-matrix-item-number">{index+1}</span><h4 id={`${q.id}-${o.value}-title`}>{o.label}</h4></header><div className="linked-matrix-item-fields">{prompts.map((p,promptIndex)=><fieldset key={p.id} {...cellProps(o,p)} className={`linked-matrix-list-field ${cellProps(o,p).className || ""}`}><legend><span className="linked-matrix-question-number">Q{promptIndex+1}.</span> {p.label}{q.required&&p.required!==false&&<span className="required-mark"> *</span>}</legend>{cellError(o,p)}{cellInput(o,p)}</fieldset>)}</div></section>)}{empty}</div>;
   } else if (
     ["short", "email", "phone", "number", "date", "time"].includes(q.type)
   ) {
@@ -3150,8 +3173,8 @@ function Question({
       tabIndex={-1}
       role="group"
       aria-labelledby={"q-title-" + q.id}
-      aria-describedby={error ? "q-error-" + q.id : undefined}
-      className={"question stack " + (error ? "q-error" : "")}
+      aria-describedby={error && !Array.isArray(error) ? "q-error-" + q.id : undefined}
+      className={"question stack " + (error && !Array.isArray(error) ? "q-error" : "")}
     >
       <div>
         <strong id={"q-title-" + q.id}>
@@ -3159,7 +3182,7 @@ function Question({
         </strong>
         {q.description && <div className="muted small">{q.description}</div>}
       </div>
-      {error && <div id={"q-error-" + q.id} className="required small">{error}</div>}
+      {error && !Array.isArray(error) && <div id={"q-error-" + q.id} className="required small">{error}</div>}
       {input}
     </div>
   );
