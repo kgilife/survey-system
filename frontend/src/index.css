@@ -632,6 +632,20 @@ th {
   border-color: #e07870;
   background: #fffafa;
 }
+.survey .question { scroll-margin-top: 82px; }
+.survey .question.q-error { border: 2px solid #c42b1c; }
+.survey .question.q-error:focus { outline: 2px solid #c42b1c; outline-offset: 3px; }
+.error-question-link {
+  border: 0;
+  padding: 8px 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
 .required {
   color: #c42b1c;
 }

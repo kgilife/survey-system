@@ -17,6 +17,7 @@ import {
 } from "./AdvancedQuestions";
 import Landing from "./Landing";
 import { parseUserPaste } from "./userPaste";
+import { focusSurveyError, validationNotice } from "./surveyErrors";
 
 const toastEvent = new EventTarget();
 window.toast = (message, type = "success") => {
@@ -2541,6 +2542,7 @@ function SurveyUI({
     [history, setHistory] = useState([0]),
     [errors, setErrors] = useState({}),
     [errorSummary, setErrorSummary] = useState([]),
+    [errorTarget, setErrorTarget] = useState(null),
     [busy, setBusy] = useState(false),
     [saveDialog, setSaveDialog] = useState(null),
     [showResumeLink, setShowResumeLink] = useState(false),
@@ -2553,6 +2555,28 @@ function SurveyUI({
     current = sections[section],
     questions = data.schema.questions.filter((q) => q.sectionId === current.id),
     writable = data.project.writable;
+  const surveyRef = useRef(null);
+  const goToError = (questionId) => {
+    const question = data.schema.questions.find((q) => q.id === questionId);
+    const index = sections.findIndex((s) => s.id === question?.sectionId);
+    if (index < 0) return;
+    if (index !== section) {
+      setHistory((previous) => {
+        const visited = previous.lastIndexOf(index);
+        return visited >= 0 ? previous.slice(0, visited + 1) : [...previous, index];
+      });
+    }
+    setErrorTarget({ questionId });
+  };
+  useEffect(() => {
+    if (!errorTarget || saveDialog || showThankYou) return;
+    // Run after React commits both the section change and inline errors.
+    const frame = requestAnimationFrame(() => {
+      focusSurveyError(surveyRef.current, errorTarget.questionId);
+      setErrorTarget(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [errorTarget, section, saveDialog, showThankYou]);
   const change = (id, v) => {
     setAnswers((currentAnswers) => {
       const nextAnswers = { ...currentAnswers, [id]: v };
@@ -2564,7 +2588,7 @@ function SurveyUI({
       return nextAnswers;
     });
     setErrors({ ...errors, [id]: undefined });
-    setErrorSummary([]);
+    setErrorSummary((previous) => previous.filter((entry) => entry.questionId !== id));
   };
   const getNextSection = () => {
     let jump = "";
@@ -2606,7 +2630,7 @@ function SurveyUI({
       
       if (q.required && isBlank) {
         errs[q.id] = "此為必填題";
-        msgs.push(`「${q.title}」為必填題`);
+        msgs.push({ questionId: q.id, message: `「${q.title}」為必填題` });
         return;
       }
       
@@ -2614,15 +2638,15 @@ function SurveyUI({
         const str = String(val);
         if (q.validation.format === "email" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(str)) {
           errs[q.id] = "格式錯誤（請輸入有效的 Email）";
-          msgs.push(`「${q.title}」Email 格式錯誤`);
+          msgs.push({ questionId: q.id, message: `「${q.title}」Email 格式錯誤` });
         }
         if (q.validation.format === "phone" && !/^[0-9\-+() ]+$/.test(str)) {
           errs[q.id] = "格式錯誤（請輸入有效的電話號碼）";
-          msgs.push(`「${q.title}」電話格式錯誤`);
+          msgs.push({ questionId: q.id, message: `「${q.title}」電話格式錯誤` });
         }
         if (q.validation.format === "number" && isNaN(Number(str))) {
           errs[q.id] = "格式錯誤（請輸入數字）";
-          msgs.push(`「${q.title}」必須為數字`);
+          msgs.push({ questionId: q.id, message: `「${q.title}」必須為數字` });
         }
       }
     });
@@ -2631,8 +2655,8 @@ function SurveyUI({
       setErrors(errs);
       setErrorSummary(msgs);
       const first = Object.keys(errs)[0];
-      setTimeout(() => document.getElementById("q-" + first)?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
-      window.toast("部分題目尚未完成或格式錯誤", "error");
+      goToError(first);
+      window.toast(validationNotice(msgs), "error");
       return false;
     }
     setErrors({});
@@ -2685,24 +2709,19 @@ function SurveyUI({
       setErrors({});
     } catch (e) {
       setSaveDialog(null);
-      if (e.details) {
+      if (Array.isArray(e.details) && e.details.length > 0) {
         const map = {};
         const msgs = [];
         e.details.forEach((x) => {
           map[x.questionId] = x.message;
           const qTitle = data.schema.questions.find(q => q.id === x.questionId)?.title || "題目";
-          msgs.push(`「${qTitle}」${x.message}`);
+          msgs.push({ questionId: x.questionId, message: `「${qTitle}」${x.message}` });
         });
         setErrors(map);
         const first = e.details[0]?.questionId;
-        const errQ = data.schema.questions.find(q => q.id === first);
-        if (errQ && errQ.sectionId !== current.id) {
-           const errSecIdx = sections.findIndex(s => s.id === errQ.sectionId);
-           if (errSecIdx >= 0) setHistory(prev => [...prev, errSecIdx]);
-        }
-        setTimeout(() => document.getElementById("q-" + first)?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+        goToError(first);
         setErrorSummary(msgs);
-        window.toast("部分題目尚未完成或格式錯誤", "error");
+        window.toast(validationNotice(msgs), "error");
       } else {
         window.toast(e.message || "發生錯誤，請檢查是否有未填寫的必填題。", "error");
       }
@@ -2711,7 +2730,7 @@ function SurveyUI({
     }
   }
   return (
-    <div className="survey stack">
+    <div className="survey stack" ref={surveyRef}>
       {saveDialog && (
         <div className="save-progress-backdrop" role="presentation">
           <div
@@ -2806,11 +2825,17 @@ function SurveyUI({
         </div>
       )}
       {errorSummary.length > 0 && !showThankYou && (
-        <div className="alert error error-banner">
-          <strong>請修正以下錯誤：</strong>
+        <div className="alert error error-banner" role="alert">
+          <strong>請修正以下錯誤（點選題目可前往）：</strong>
           <ul>
-            {errorSummary.map((msg, idx) => (
-              <li key={idx}>{msg}</li>
+            {errorSummary.map((entry, idx) => (
+              <li key={idx}>
+                {entry.questionId ? (
+                  <button type="button" className="error-question-link" onClick={() => goToError(entry.questionId)}>
+                    {entry.message}
+                  </button>
+                ) : (entry.message || entry)}
+              </li>
             ))}
           </ul>
         </div>
@@ -3121,16 +3146,21 @@ function Question({
   return (
     <div
       id={"q-" + q.id}
+      data-question-id={q.id}
+      tabIndex={-1}
+      role="group"
+      aria-labelledby={"q-title-" + q.id}
+      aria-describedby={error ? "q-error-" + q.id : undefined}
       className={"question stack " + (error ? "q-error" : "")}
     >
       <div>
-        <strong>
+        <strong id={"q-title-" + q.id}>
           {q.title} {q.required && <span className="required">*</span>}
         </strong>
         {q.description && <div className="muted small">{q.description}</div>}
       </div>
+      {error && <div id={"q-error-" + q.id} className="required small">{error}</div>}
       {input}
-      {error && <div className="required small">{error}</div>}
     </div>
   );
 }
